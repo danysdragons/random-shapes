@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_BOARD_WIDTH = 1600;
 const DEFAULT_BOARD_HEIGHT = 960;
@@ -8,6 +8,9 @@ const MIN_BOARD_HEIGHT = 300;
 const MAX_BOARD_HEIGHT = 3000;
 const MIN_SHAPES = 5;
 const MAX_SHAPES = 250;
+const MIN_ALERT_SECONDS = 0.2;
+const MAX_ALERT_SECONDS = 60;
+const LABEL_FONT_SIZE = 24;
 
 const palette = [
   "#ff6b6b",
@@ -22,8 +25,36 @@ const palette = [
   "#ffa94d",
 ];
 
+const wordBank = [
+  "orbit",
+  "glyph",
+  "ember",
+  "vector",
+  "signal",
+  "delta",
+  "anchor",
+  "lumen",
+  "kernel",
+  "beacon",
+  "ripple",
+  "cobalt",
+  "atlas",
+  "mosaic",
+  "quartz",
+  "drift",
+  "nova",
+  "hinge",
+  "pocket",
+  "prism",
+  "thread",
+  "harbor",
+  "motive",
+  "field",
+];
+
 type ShapeType = "circle" | "rectangle" | "triangle" | "pentagon" | "hexagon";
 type GridMode = "none" | "square" | "hex";
+type LabelType = "word" | "number";
 
 type Shape =
   | {
@@ -54,6 +85,14 @@ export default function App() {
   const [showBorder, setShowBorder] = useState(true);
   const [gridMode, setGridMode] = useState<GridMode>("none");
   const [gridOpacity, setGridOpacity] = useState(0.35);
+  const [showLabels, setShowLabels] = useState(false);
+  const [labelType, setLabelType] = useState<LabelType>("word");
+  const [minAlertSec, setMinAlertSec] = useState(1);
+  const [maxAlertSec, setMaxAlertSec] = useState(10);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
+  const alertTimeoutRef = useRef<number | null>(null);
+  const hideTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const viewportWidth = Math.max(
@@ -69,9 +108,93 @@ export default function App() {
     setBoardHeight(viewportHeight);
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      const isPlainN =
+        (event.key === "n" || event.key === "N") &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey;
+      const isSubmitShortcut =
+        event.key === "Enter" && (event.ctrlKey || event.metaKey);
+
+      if (!isPlainN && !isSubmitShortcut) {
+        return;
+      }
+
+      event.preventDefault();
+      setSeed(randomSeed());
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    const clearTimers = () => {
+      if (alertTimeoutRef.current !== null) {
+        window.clearTimeout(alertTimeoutRef.current);
+      }
+
+      if (hideTimeoutRef.current !== null) {
+        window.clearTimeout(hideTimeoutRef.current);
+      }
+    };
+
+    clearTimers();
+
+    const [minSeconds, maxSeconds] = normalizeAlertWindow(
+      minAlertSec,
+      maxAlertSec,
+    );
+
+    const scheduleNext = () => {
+      const delay =
+        (minSeconds + Math.random() * (maxSeconds - minSeconds)) * 1000;
+
+      alertTimeoutRef.current = window.setTimeout(() => {
+        setAlertCount((count) => count + 1);
+        setShowAlert(true);
+
+        if (hideTimeoutRef.current !== null) {
+          window.clearTimeout(hideTimeoutRef.current);
+        }
+
+        hideTimeoutRef.current = window.setTimeout(() => {
+          setShowAlert(false);
+        }, 1200);
+
+        scheduleNext();
+      }, delay);
+    };
+
+    scheduleNext();
+
+    return clearTimers;
+  }, [minAlertSec, maxAlertSec]);
+
   const shapes = useMemo(
     () => generateShapes(shapeCount, seed, boardWidth, boardHeight),
     [shapeCount, seed, boardWidth, boardHeight],
+  );
+
+  const labels = useMemo(
+    () => generateLabels(shapeCount, seed, labelType),
+    [shapeCount, seed, labelType],
   );
 
   return (
@@ -79,16 +202,16 @@ export default function App() {
       <section className="app-card">
         <header className="hero">
           <div>
-            <p className="eyebrow">Pass 1: Layout, Dimensions, Grid</p>
+            <p className="eyebrow">Pass 2: Alerts, Labels, Shortcuts</p>
             <h1>Random Shape Whiteboard</h1>
             <p className="hero-copy">
-              Tune the board dimensions, toggle borders, and switch between no
-              grid, square grid, or hexagonal grid. The board sits below the
-              controls and stretches wider to use the available space.
+              The board now supports randomized alert timing, optional labels
+              beneath each shape, and keyboard shortcuts for generating a fresh
+              layout without reaching for the mouse.
             </p>
           </div>
           <button className="board-button" onClick={() => setSeed(randomSeed())}>
-            New board
+            New board (N or Ctrl/Cmd+Enter)
           </button>
         </header>
 
@@ -143,6 +266,15 @@ export default function App() {
                 />
                 <span>Add border to shapes</span>
               </label>
+
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={showLabels}
+                  onChange={(event) => setShowLabels(event.target.checked)}
+                />
+                <span>Show labels below shapes</span>
+              </label>
             </div>
 
             <div className="select-grid">
@@ -156,6 +288,21 @@ export default function App() {
                   <option value="none">No grid</option>
                   <option value="square">Square grid</option>
                   <option value="hex">Hexagonal grid</option>
+                </select>
+              </label>
+
+              <label className="select-field" htmlFor="label-type">
+                <span>Label type</span>
+                <select
+                  id="label-type"
+                  value={labelType}
+                  disabled={!showLabels}
+                  onChange={(event) =>
+                    setLabelType(event.target.value as LabelType)
+                  }
+                >
+                  <option value="word">Random word</option>
+                  <option value="number">Random number</option>
                 </select>
               </label>
             </div>
@@ -192,6 +339,28 @@ export default function App() {
                 />
               </div>
             </div>
+
+            <DoubleNumberRangeControl
+              label="Alert min (s)"
+              value={minAlertSec}
+              min={MIN_ALERT_SECONDS}
+              max={MAX_ALERT_SECONDS}
+              step={0.1}
+              inputId="alert-min"
+              rangeId="alert-min-range"
+              onChange={setMinAlertSec}
+            />
+
+            <DoubleNumberRangeControl
+              label="Alert max (s)"
+              value={maxAlertSec}
+              min={MIN_ALERT_SECONDS}
+              max={MAX_ALERT_SECONDS}
+              step={0.1}
+              inputId="alert-max"
+              rangeId="alert-max-range"
+              onChange={setMaxAlertSec}
+            />
           </div>
         </section>
 
@@ -200,29 +369,46 @@ export default function App() {
             <span>Board {boardWidth} x {boardHeight}</span>
             <span>
               {shapeCount} shapes • {gridMode === "none" ? "no grid" : `${gridMode} grid`}
+              {showLabels ? ` • labels: ${labelType}` : ""}
             </span>
           </div>
-          <div
-            className="board-surface"
-            style={{ aspectRatio: `${boardWidth} / ${boardHeight}` }}
-          >
-            <svg
-              viewBox={`0 0 ${boardWidth} ${boardHeight}`}
-              role="img"
-              aria-label={`Whiteboard containing ${shapeCount} random shapes`}
-              preserveAspectRatio="xMidYMid meet"
+          <div className="board-stage">
+            {showAlert ? (
+              <div className="board-alert" role="status" aria-live="polite">
+                Alert #{alertCount}
+              </div>
+            ) : null}
+            <div
+              className="board-surface"
+              style={{ aspectRatio: `${boardWidth} / ${boardHeight}` }}
             >
-              <rect width={boardWidth} height={boardHeight} fill="#fffdf8" />
-              <GridPattern
-                mode={gridMode}
-                width={boardWidth}
-                height={boardHeight}
-                opacity={gridOpacity}
-              />
-              {shapes.map((shape) => (
-                <ShapeMark key={shape.id} shape={shape} showBorder={showBorder} />
-              ))}
-            </svg>
+              <svg
+                viewBox={`0 0 ${boardWidth} ${boardHeight}`}
+                role="img"
+                aria-label={`Whiteboard containing ${shapeCount} random shapes`}
+                preserveAspectRatio="xMidYMid meet"
+              >
+                <rect width={boardWidth} height={boardHeight} fill="#fffdf8" />
+                <GridPattern
+                  mode={gridMode}
+                  width={boardWidth}
+                  height={boardHeight}
+                  opacity={gridOpacity}
+                />
+                {shapes.map((shape) => (
+                  <ShapeMark key={shape.id} shape={shape} showBorder={showBorder} />
+                ))}
+                {showLabels
+                  ? shapes.map((shape, index) => (
+                      <ShapeLabel
+                        key={`label-${shape.id}`}
+                        shape={shape}
+                        label={labels[index] ?? ""}
+                      />
+                    ))
+                  : null}
+              </svg>
+            </div>
           </div>
         </section>
       </section>
@@ -274,6 +460,56 @@ function DimensionControl({
           step={step}
           value={value}
           onChange={(event) => onChange(clampInt(event.target.value, min, max))}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DoubleNumberRangeControl({
+  label,
+  value,
+  min,
+  max,
+  step,
+  inputId,
+  rangeId,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  inputId: string;
+  rangeId: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="control-block">
+      <div className="control-label-row">
+        <label htmlFor={inputId}>{label}</label>
+        <output htmlFor={`${inputId} ${rangeId}`}>{value.toFixed(1)}s</output>
+      </div>
+      <div className="paired-inputs">
+        <input
+          id={inputId}
+          className="number-input"
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => onChange(clampFloat(event.target.value, min, max))}
+        />
+        <input
+          id={rangeId}
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => onChange(clampFloat(event.target.value, min, max))}
         />
       </div>
     </div>
@@ -417,6 +653,43 @@ function ShapeMark({
   );
 }
 
+function ShapeLabel({
+  shape,
+  label,
+}: {
+  shape: Shape;
+  label: string;
+}) {
+  const centerY = shape.y + getLabelOffset(shape);
+  const pillWidth = Math.max(86, label.length * LABEL_FONT_SIZE * 0.64 + 28);
+  const pillHeight = 34;
+
+  return (
+    <g className="label-mark">
+      <rect
+        x={shape.x - pillWidth / 2}
+        y={centerY - pillHeight / 2}
+        width={pillWidth}
+        height={pillHeight}
+        rx={pillHeight / 2}
+        fill="rgba(255, 255, 255, 0.9)"
+        stroke="rgba(36, 48, 65, 0.12)"
+      />
+      <text
+        x={shape.x}
+        y={centerY + 1}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontSize={LABEL_FONT_SIZE}
+        fontWeight="600"
+        fill="#233043"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
 function trianglePoints(width: number, height: number) {
   return [
     `0 ${-height / 2}`,
@@ -505,6 +778,40 @@ function generateShapes(
       height: baseSize,
     } satisfies Shape;
   });
+}
+
+function generateLabels(count: number, seed: number, labelType: LabelType) {
+  const random = mulberry32(seed ^ 0x9e3779b9);
+
+  return Array.from({ length: count }, (_, index) => {
+    if (labelType === "number") {
+      return String(index + 1);
+    }
+
+    return wordBank[Math.floor(random() * wordBank.length)] ?? "signal";
+  });
+}
+
+function getLabelOffset(shape: Shape) {
+  if (shape.type === "circle") {
+    return shape.radius + 28;
+  }
+
+  if (shape.type === "rectangle") {
+    return shape.height / 2 + 28;
+  }
+
+  return Math.max(shape.width, shape.height) / 2 + 28;
+}
+
+function normalizeAlertWindow(min: number, max: number) {
+  const lower = Math.max(MIN_ALERT_SECONDS, Math.min(min, max));
+  const upper = Math.min(
+    MAX_ALERT_SECONDS,
+    Math.max(lower + 0.1, Math.max(min, max)),
+  );
+
+  return [lower, upper] as const;
 }
 
 function clampFloat(value: string, min: number, max: number) {

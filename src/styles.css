@@ -195,6 +195,7 @@ input[type="range"] {
 }
 
 .board-frame {
+  position: relative;
   border-radius: 26px;
   overflow: hidden;
   background: #ffffff;
@@ -214,11 +215,35 @@ input[type="range"] {
   font-size: 0.9rem;
 }
 
+.board-stage {
+  position: relative;
+}
+
+.board-alert {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(197, 43, 43, 0.2);
+  color: #c53030;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 14px 28px rgba(29, 36, 48, 0.18);
+}
+
 .board-surface {
   width: 100%;
   min-height: min(74vh, 980px);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+}
+
+.label-mark text {
+  letter-spacing: 0.01em;
 }
 
 .board-surface svg {

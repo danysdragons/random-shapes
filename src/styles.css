@@ -317,6 +317,30 @@ input[type="range"] {
   align-items: center;
 }
 
+.shape-option-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shape-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.72rem 0.78rem;
+  border: 1px solid rgba(36, 48, 65, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.48);
+  color: #223044;
+  font-weight: 700;
+}
+
+.shape-option input {
+  width: 17px;
+  height: 17px;
+  accent-color: #2f7f63;
+}
+
 .checkbox-field {
   display: inline-flex;
   align-items: center;
@@ -588,6 +612,10 @@ select:disabled {
 
   .session-record-list {
     min-width: 0;
+  }
+
+  .shape-option-grid {
+    grid-template-columns: 1fr;
   }
 
   .paired-inputs {

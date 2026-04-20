@@ -17,18 +17,78 @@ const SESSION_DURATIONS = [1, 3, 5, 10] as const;
 const TEMPO_LADDER_STEPS = [2, 4, 6, 8] as const;
 const TEMPO_LADDER_INTERVALS = [30, 60, 120] as const;
 
-const palette = [
-  "#ff6b6b",
-  "#f59f00",
-  "#ffd43b",
-  "#69db7c",
-  "#38d9a9",
-  "#4dabf7",
-  "#748ffc",
-  "#b197fc",
-  "#f783ac",
-  "#ffa94d",
-];
+const paletteThemes = {
+  bright: [
+    "#ff6b6b",
+    "#f59f00",
+    "#ffd43b",
+    "#69db7c",
+    "#38d9a9",
+    "#4dabf7",
+    "#748ffc",
+    "#b197fc",
+    "#f783ac",
+    "#ffa94d",
+  ],
+  muted: [
+    "#b85c5c",
+    "#b7791f",
+    "#a58a2a",
+    "#5f8f65",
+    "#4c8577",
+    "#527fa4",
+    "#626c9f",
+    "#7b679d",
+    "#a35f82",
+    "#b8754a",
+  ],
+  pastel: [
+    "#ffb3ba",
+    "#ffd6a5",
+    "#fdffb6",
+    "#caffbf",
+    "#bde0fe",
+    "#a0c4ff",
+    "#ffc6ff",
+    "#d0f4de",
+    "#e4c1f9",
+    "#f1c0a8",
+  ],
+  highContrast: [
+    "#e11d48",
+    "#f97316",
+    "#eab308",
+    "#16a34a",
+    "#0891b2",
+    "#2563eb",
+    "#4f46e5",
+    "#9333ea",
+    "#111827",
+    "#f8fafc",
+  ],
+  grayscale: [
+    "#111827",
+    "#374151",
+    "#4b5563",
+    "#6b7280",
+    "#9ca3af",
+    "#d1d5db",
+    "#e5e7eb",
+    "#f3f4f6",
+  ],
+} as const;
+
+const shapeTypeOptions = [
+  { type: "circle", label: "Circle" },
+  { type: "rectangle", label: "Rectangle" },
+  { type: "triangle", label: "Triangle" },
+  { type: "pentagon", label: "Pentagon" },
+  { type: "hexagon", label: "Hexagon" },
+  { type: "diamond", label: "Diamond" },
+  { type: "star", label: "Star" },
+  { type: "capsule", label: "Capsule" },
+  { type: "ring", label: "Ring" },
+] as const;
 
 const wordBank = [
   "orbit",
@@ -57,9 +117,12 @@ const wordBank = [
   "field",
 ];
 
-type ShapeType = "circle" | "rectangle" | "triangle" | "pentagon" | "hexagon";
+type ShapeType = (typeof shapeTypeOptions)[number]["type"];
 type GridMode = "none" | "square" | "hex";
 type LabelType = "word" | "number";
+type PaletteTheme = keyof typeof paletteThemes;
+type ShapeSizeMode = "small" | "medium" | "large" | "mixed";
+type RotationMode = "none" | "subtle" | "full";
 type ExerciseMode =
   | "free"
   | "sequential"
@@ -107,7 +170,7 @@ type ResponseFeedback = {
 
 type Shape =
   | {
-      type: "circle";
+      type: "circle" | "ring";
       id: string;
       x: number;
       y: number;
@@ -116,7 +179,7 @@ type Shape =
       radius: number;
     }
   | {
-      type: Exclude<ShapeType, "circle">;
+      type: Exclude<ShapeType, "circle" | "ring">;
       id: string;
       x: number;
       y: number;
@@ -304,6 +367,12 @@ export default function App() {
   const [boardWidth, setBoardWidth] = useState(DEFAULT_BOARD_WIDTH);
   const [boardHeight, setBoardHeight] = useState(DEFAULT_BOARD_HEIGHT);
   const [showBorder, setShowBorder] = useState(true);
+  const [enabledShapeTypes, setEnabledShapeTypes] = useState<ShapeType[]>(
+    () => shapeTypeOptions.map(({ type }) => type),
+  );
+  const [paletteTheme, setPaletteTheme] = useState<PaletteTheme>("bright");
+  const [shapeSizeMode, setShapeSizeMode] = useState<ShapeSizeMode>("mixed");
+  const [rotationMode, setRotationMode] = useState<RotationMode>("full");
   const [gridMode, setGridMode] = useState<GridMode>("none");
   const [gridOpacity, setGridOpacity] = useState(0.35);
   const [showLabels, setShowLabels] = useState(false);
@@ -641,8 +710,27 @@ export default function App() {
       : showLabels || exerciseMode !== "free";
 
   const shapes = useMemo(
-    () => generateShapes(shapeCount, seed, boardWidth, boardHeight),
-    [shapeCount, seed, boardWidth, boardHeight],
+    () =>
+      generateShapes(
+        shapeCount,
+        seed,
+        boardWidth,
+        boardHeight,
+        enabledShapeTypes,
+        paletteTheme,
+        shapeSizeMode,
+        rotationMode,
+      ),
+    [
+      boardHeight,
+      boardWidth,
+      enabledShapeTypes,
+      paletteTheme,
+      rotationMode,
+      seed,
+      shapeCount,
+      shapeSizeMode,
+    ],
   );
 
   const labels = useMemo(
@@ -825,6 +913,18 @@ export default function App() {
     setSessionCompleted(false);
     setSessionRemainingSeconds(sessionDurationMinutes * 60);
     sessionCompletionLoggedRef.current = false;
+  }
+
+  function toggleShapeType(shapeType: ShapeType) {
+    setEnabledShapeTypes((types) => {
+      if (types.includes(shapeType)) {
+        return types.length === 1
+          ? types
+          : types.filter((type) => type !== shapeType);
+      }
+
+      return [...types, shapeType];
+    });
   }
 
   function applyPracticePreset(preset: PracticePreset) {
@@ -1452,6 +1552,75 @@ export default function App() {
               />
             </div>
 
+            <div className="control-block">
+              <div className="control-label-row">
+                <span>Shape types</span>
+                <output>{enabledShapeTypes.length}/{shapeTypeOptions.length}</output>
+              </div>
+              <div className="shape-option-grid">
+                {shapeTypeOptions.map(({ type, label }) => (
+                  <label key={type} className="shape-option">
+                    <input
+                      type="checkbox"
+                      checked={enabledShapeTypes.includes(type)}
+                      onChange={() => toggleShapeType(type)}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="select-grid">
+              <label className="select-field" htmlFor="palette-theme">
+                <span>Palette</span>
+                <select
+                  id="palette-theme"
+                  value={paletteTheme}
+                  onChange={(event) =>
+                    setPaletteTheme(event.target.value as PaletteTheme)
+                  }
+                >
+                  <option value="bright">Bright</option>
+                  <option value="muted">Muted</option>
+                  <option value="pastel">Pastel</option>
+                  <option value="highContrast">High contrast</option>
+                  <option value="grayscale">Grayscale</option>
+                </select>
+              </label>
+
+              <label className="select-field" htmlFor="shape-size-mode">
+                <span>Shape size</span>
+                <select
+                  id="shape-size-mode"
+                  value={shapeSizeMode}
+                  onChange={(event) =>
+                    setShapeSizeMode(event.target.value as ShapeSizeMode)
+                  }
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Large</option>
+                  <option value="mixed">Mixed</option>
+                </select>
+              </label>
+
+              <label className="select-field" htmlFor="rotation-mode">
+                <span>Rotation</span>
+                <select
+                  id="rotation-mode"
+                  value={rotationMode}
+                  onChange={(event) =>
+                    setRotationMode(event.target.value as RotationMode)
+                  }
+                >
+                  <option value="none">None</option>
+                  <option value="subtle">Subtle</option>
+                  <option value="full">Full random</option>
+                </select>
+              </label>
+            </div>
+
             <RangeControl
               label="Width"
               output={`${boardWidth}px`}
@@ -1568,7 +1737,8 @@ export default function App() {
           <div className="board-meta">
             <span>Board {boardWidth} x {boardHeight}</span>
             <span>
-              {shapeCount} shapes • {gridMode === "none" ? "no grid" : `${gridMode} grid`}
+              {shapeCount} shapes • {enabledShapeTypes.length} types • {paletteTheme}
+              {" palette"} • {gridMode === "none" ? "no grid" : `${gridMode} grid`}
               {effectiveShowLabels ? ` • labels: ${effectiveLabelType}` : ""}
               {exerciseMode !== "free"
                 ? currentTargetIndex !== null
@@ -1844,6 +2014,17 @@ function ShapeMark({
       {shape.type === "circle" ? (
         <circle r={shape.radius} fill={shape.color} {...borderProps} />
       ) : null}
+      {shape.type === "ring" ? (
+        <>
+          <circle r={shape.radius} fill={shape.color} {...borderProps} />
+          <circle
+            r={shape.radius * 0.54}
+            fill="#fffdf8"
+            stroke={showBorder ? "#243041" : shape.color}
+            strokeWidth={showBorder ? 3 : 0}
+          />
+        </>
+      ) : null}
       {shape.type === "rectangle" ? (
         <rect
           x={-shape.width / 2}
@@ -1855,9 +2036,34 @@ function ShapeMark({
           {...borderProps}
         />
       ) : null}
+      {shape.type === "capsule" ? (
+        <rect
+          x={-shape.width / 2}
+          y={-shape.height / 2}
+          width={shape.width}
+          height={shape.height}
+          rx={shape.height / 2}
+          fill={shape.color}
+          {...borderProps}
+        />
+      ) : null}
       {shape.type === "triangle" ? (
         <polygon
           points={trianglePoints(shape.width, shape.height)}
+          fill={shape.color}
+          {...borderProps}
+        />
+      ) : null}
+      {shape.type === "diamond" ? (
+        <polygon
+          points={polygonPoints(4, shape.width / 2)}
+          fill={shape.color}
+          {...borderProps}
+        />
+      ) : null}
+      {shape.type === "star" ? (
+        <polygon
+          points={starPoints(shape.width / 2)}
           fill={shape.color}
           {...borderProps}
         />
@@ -1895,7 +2101,7 @@ function ShapeHalo({
   const strokeWidth = variant === "active" ? 18 : 10;
   const strokeDasharray = variant === "anchor" ? "16 12" : undefined;
 
-  if (shape.type === "circle") {
+  if ("radius" in shape) {
     return (
       <circle
         r={shape.radius + 18}
@@ -1907,7 +2113,7 @@ function ShapeHalo({
     );
   }
 
-  if (shape.type === "rectangle") {
+  if (shape.type === "rectangle" || shape.type === "capsule") {
     return (
       <rect
         x={-shape.width / 2 - 12}
@@ -1925,14 +2131,7 @@ function ShapeHalo({
 
   return (
     <polygon
-      points={
-        shape.type === "triangle"
-          ? trianglePoints(shape.width + 22, shape.height + 22)
-          : polygonPoints(
-              shape.type === "pentagon" ? 5 : 6,
-              shape.width / 2 + 16,
-            )
-      }
+      points={getPolygonHaloPoints(shape)}
       fill="none"
       stroke={stroke}
       strokeDasharray={strokeDasharray}
@@ -1940,6 +2139,22 @@ function ShapeHalo({
       strokeLinejoin="round"
     />
   );
+}
+
+function getPolygonHaloPoints(shape: Exclude<Shape, { type: "circle" | "ring" }>) {
+  if (shape.type === "triangle") {
+    return trianglePoints(shape.width + 22, shape.height + 22);
+  }
+
+  if (shape.type === "diamond") {
+    return polygonPoints(4, shape.width / 2 + 16);
+  }
+
+  if (shape.type === "star") {
+    return starPoints(shape.width / 2 + 18);
+  }
+
+  return polygonPoints(shape.type === "pentagon" ? 5 : 6, shape.width / 2 + 16);
 }
 
 function ShapeLabel({
@@ -2018,20 +2233,34 @@ function polygonPoints(
   }).join(" ");
 }
 
+function starPoints(radius: number) {
+  const innerRadius = radius * 0.48;
+
+  return Array.from({ length: 10 }, (_, index) => {
+    const activeRadius = index % 2 === 0 ? radius : innerRadius;
+    const angle = -Math.PI / 2 + (index * Math.PI) / 5;
+    const x = Math.cos(angle) * activeRadius;
+    const y = Math.sin(angle) * activeRadius;
+    return `${x} ${y}`;
+  }).join(" ");
+}
+
 function generateShapes(
   count: number,
   seed: number,
   boardWidth: number,
   boardHeight: number,
+  enabledTypes: ShapeType[],
+  paletteTheme: PaletteTheme,
+  sizeMode: ShapeSizeMode,
+  rotationMode: RotationMode,
 ) {
   const random = mulberry32(seed);
-  const shapeTypes: ShapeType[] = [
-    "circle",
-    "rectangle",
-    "triangle",
-    "pentagon",
-    "hexagon",
-  ];
+  const shapeTypes =
+    enabledTypes.length > 0
+      ? enabledTypes
+      : shapeTypeOptions.map(({ type }) => type);
+  const palette = paletteThemes[paletteTheme];
   const padding = clampInt(
     String(Math.round(Math.min(boardWidth, boardHeight) * 0.055)),
     42,
@@ -2042,11 +2271,13 @@ function generateShapes(
     const type = shapeTypes[Math.floor(random() * shapeTypes.length)]!;
     const x = lerp(padding, boardWidth - padding, random());
     const y = lerp(padding, boardHeight - padding, random());
-    const rotation = Math.round(random() * 360);
+    const rotation = getShapeRotation(random, rotationMode);
     const color = palette[Math.floor(random() * palette.length)]!;
-    const scale = Math.min(boardWidth, boardHeight) / DEFAULT_BOARD_HEIGHT;
+    const scale =
+      (Math.min(boardWidth, boardHeight) / DEFAULT_BOARD_HEIGHT) *
+      getShapeSizeScale(random, sizeMode);
 
-    if (type === "circle") {
+    if (type === "circle" || type === "ring") {
       return {
         type,
         id: `shape-${index}`,
@@ -2058,7 +2289,7 @@ function generateShapes(
       } satisfies Shape;
     }
 
-    if (type === "rectangle") {
+    if (type === "rectangle" || type === "capsule") {
       return {
         type,
         id: `shape-${index}`,
@@ -2066,12 +2297,12 @@ function generateShapes(
         y,
         rotation,
         color,
-        width: lerp(64, 162, random()) * scale,
-        height: lerp(44, 124, random()) * scale,
+        width: lerp(type === "capsule" ? 92 : 64, 168, random()) * scale,
+        height: lerp(type === "capsule" ? 42 : 44, 118, random()) * scale,
       } satisfies Shape;
     }
 
-    const baseSize = lerp(72, 150, random()) * scale;
+    const baseSize = lerp(type === "star" ? 80 : 72, 150, random()) * scale;
     return {
       type,
       id: `shape-${index}`,
@@ -2080,9 +2311,37 @@ function generateShapes(
       rotation,
       color,
       width: baseSize,
-      height: baseSize,
+      height: type === "triangle" ? baseSize * 0.9 : baseSize,
     } satisfies Shape;
   });
+}
+
+function getShapeRotation(random: () => number, rotationMode: RotationMode) {
+  if (rotationMode === "none") {
+    return 0;
+  }
+
+  if (rotationMode === "subtle") {
+    return Math.round(lerp(-18, 18, random()));
+  }
+
+  return Math.round(random() * 360);
+}
+
+function getShapeSizeScale(random: () => number, sizeMode: ShapeSizeMode) {
+  if (sizeMode === "small") {
+    return 0.72;
+  }
+
+  if (sizeMode === "medium") {
+    return 0.96;
+  }
+
+  if (sizeMode === "large") {
+    return 1.24;
+  }
+
+  return lerp(0.62, 1.32, random());
 }
 
 function generateLabels(count: number, seed: number, labelType: LabelType) {
@@ -2123,7 +2382,7 @@ function generateMemorySequence(
 }
 
 function getLabelOffset(shape: Shape) {
-  if (shape.type === "circle") {
+  if ("radius" in shape) {
     return shape.radius + 28;
   }
 

@@ -303,7 +303,9 @@ Each record includes:
 
 Use **Clear log** to remove the current log.
 
-The current log is not persisted across page reloads. Persistent storage may be added later.
+Use **Export log** to download the current log as a JSON file.
+
+The session log is saved in the browser's local storage and should survive page reloads on the same device and browser. Clearing browser site data will remove the saved log.
 
 ## Practice Presets
 

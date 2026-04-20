@@ -1,369 +1,85 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import trainingManualMarkdown from "../TRAINING_MANUAL.md?raw";
+import { playMetronomeTick } from "./audio";
+import { Whiteboard } from "./components/Whiteboard";
+import {
+  DEFAULT_BOARD_HEIGHT,
+  DEFAULT_BOARD_WIDTH,
+  MAX_BOARD_HEIGHT,
+  MAX_BOARD_WIDTH,
+  MAX_SHAPES,
+  MAX_ALERT_SECONDS,
+  MAX_BPM,
+  MIN_BOARD_HEIGHT,
+  MIN_BOARD_WIDTH,
+  MIN_SHAPES,
+  MIN_ALERT_SECONDS,
+  MIN_BPM,
+  SESSION_DURATIONS,
+  SESSION_RECORDS_STORAGE_KEY,
+  TEMPO_LADDER_INTERVALS,
+  TEMPO_LADDER_STEPS,
+  practicePresets,
+  shapeTypeOptions,
+} from "./config";
+import {
+  generateMemorySequence,
+  getAlternatingPatternLabel,
+  getCurrentTargetIndex,
+  getExerciseLabel,
+  getMemoryPhaseLabel,
+} from "./exerciseLogic";
+import { clampFloat, clampInt, randomSeed } from "./math";
+import {
+  formatSessionTime,
+  formatTempoLadderInterval,
+  getTempoLadderBpm,
+  normalizeAlertWindow,
+} from "./sessionLogic";
+import {
+  generateLabels,
+  generateShapes,
+} from "./shapeLogic";
+import type {
+  AlternatingPattern,
+  AnchorReturnInterval,
+  BeatsPerTarget,
+  BorderStyleMode,
+  CenterMarkerStyle,
+  CornerStyle,
+  ExerciseMode,
+  FillStyle,
+  GridMode,
+  LabelType,
+  MemoryPhase,
+  MemorySequenceLength,
+  PaletteTheme,
+  PracticePreset,
+  ResponseFeedback,
+  RotationMode,
+  SessionDurationMinutes,
+  SessionRecord,
+  Shape,
+  ShapeSizeMode,
+  ShapeType,
+  TempoLadderIntervalSeconds,
+  TempoLadderStepBpm,
+} from "./types";
 
-const DEFAULT_BOARD_WIDTH = 1600;
-const DEFAULT_BOARD_HEIGHT = 960;
-const MIN_BOARD_WIDTH = 400;
-const MAX_BOARD_WIDTH = 4000;
-const MIN_BOARD_HEIGHT = 300;
-const MAX_BOARD_HEIGHT = 3000;
-const MIN_SHAPES = 5;
-const MAX_SHAPES = 250;
-const MIN_ALERT_SECONDS = 0.2;
-const MAX_ALERT_SECONDS = 60;
-const MIN_BPM = 30;
-const MAX_BPM = 180;
-const LABEL_FONT_SIZE = 24;
-const SESSION_DURATIONS = [1, 3, 5, 10] as const;
-const TEMPO_LADDER_STEPS = [2, 4, 6, 8] as const;
-const TEMPO_LADDER_INTERVALS = [30, 60, 120] as const;
+function loadStoredSessionRecords() {
+  try {
+    const storedRecords = window.localStorage.getItem(SESSION_RECORDS_STORAGE_KEY);
 
-const paletteThemes = {
-  bright: [
-    "#ff6b6b",
-    "#f59f00",
-    "#ffd43b",
-    "#69db7c",
-    "#38d9a9",
-    "#4dabf7",
-    "#748ffc",
-    "#b197fc",
-    "#f783ac",
-    "#ffa94d",
-  ],
-  muted: [
-    "#b85c5c",
-    "#b7791f",
-    "#a58a2a",
-    "#5f8f65",
-    "#4c8577",
-    "#527fa4",
-    "#626c9f",
-    "#7b679d",
-    "#a35f82",
-    "#b8754a",
-  ],
-  pastel: [
-    "#ffb3ba",
-    "#ffd6a5",
-    "#fdffb6",
-    "#caffbf",
-    "#bde0fe",
-    "#a0c4ff",
-    "#ffc6ff",
-    "#d0f4de",
-    "#e4c1f9",
-    "#f1c0a8",
-  ],
-  highContrast: [
-    "#e11d48",
-    "#f97316",
-    "#eab308",
-    "#16a34a",
-    "#0891b2",
-    "#2563eb",
-    "#4f46e5",
-    "#9333ea",
-    "#111827",
-    "#f8fafc",
-  ],
-  grayscale: [
-    "#111827",
-    "#374151",
-    "#4b5563",
-    "#6b7280",
-    "#9ca3af",
-    "#d1d5db",
-    "#e5e7eb",
-    "#f3f4f6",
-  ],
-} as const;
-
-const shapeTypeOptions = [
-  { type: "circle", label: "Circle" },
-  { type: "rectangle", label: "Rectangle" },
-  { type: "triangle", label: "Triangle" },
-  { type: "pentagon", label: "Pentagon" },
-  { type: "hexagon", label: "Hexagon" },
-  { type: "diamond", label: "Diamond" },
-  { type: "star", label: "Star" },
-  { type: "capsule", label: "Capsule" },
-  { type: "ring", label: "Ring" },
-] as const;
-
-const wordBank = [
-  "orbit",
-  "glyph",
-  "ember",
-  "vector",
-  "signal",
-  "delta",
-  "anchor",
-  "lumen",
-  "kernel",
-  "beacon",
-  "ripple",
-  "cobalt",
-  "atlas",
-  "mosaic",
-  "quartz",
-  "drift",
-  "nova",
-  "hinge",
-  "pocket",
-  "prism",
-  "thread",
-  "harbor",
-  "motive",
-  "field",
-];
-
-type ShapeType = (typeof shapeTypeOptions)[number]["type"];
-type GridMode = "none" | "square" | "hex";
-type LabelType = "word" | "number";
-type PaletteTheme = keyof typeof paletteThemes;
-type ShapeSizeMode = "small" | "medium" | "large" | "mixed";
-type RotationMode = "none" | "subtle" | "full";
-type BorderStyleMode = "none" | "thin" | "medium" | "bold" | "dashed";
-type CornerStyle = "sharp" | "soft" | "round";
-type FillStyle = "solid" | "translucent" | "outline";
-type CenterMarkerStyle = "dot" | "ring" | "crosshair" | "none";
-type ExerciseMode =
-  | "free"
-  | "sequential"
-  | "anchor-return"
-  | "alternating-feature"
-  | "memory-replay";
-type BeatsPerTarget = 1 | 2 | 4;
-type AnchorReturnInterval = 4 | 6 | 8;
-type AlternatingPattern = "triangle-circle" | "warm-cool";
-type MemoryPhase = "idle" | "preview" | "recall" | "complete";
-type MemorySequenceLength = 4 | 6 | 8 | 10;
-type SessionDurationMinutes = (typeof SESSION_DURATIONS)[number];
-type TempoLadderStepBpm = (typeof TEMPO_LADDER_STEPS)[number];
-type TempoLadderIntervalSeconds = (typeof TEMPO_LADDER_INTERVALS)[number];
-type PracticePreset = {
-  id: string;
-  name: string;
-  description: string;
-  exerciseMode: ExerciseMode;
-  bpm: number;
-  beatsPerTarget: BeatsPerTarget;
-  sessionDurationMinutes: SessionDurationMinutes;
-  tempoLadderEnabled: boolean;
-  tempoLadderStepBpm: TempoLadderStepBpm;
-  tempoLadderIntervalSeconds: TempoLadderIntervalSeconds;
-  anchorReturnInterval?: AnchorReturnInterval;
-  alternatingPattern?: AlternatingPattern;
-  memorySequenceLength?: MemorySequenceLength;
-};
-type SessionRecord = {
-  id: string;
-  kind: "completed" | "saved";
-  exerciseLabel: string;
-  durationSeconds: number;
-  bpmLabel: string;
-  attempts: number;
-  correct: number;
-  accuracy: number;
-};
-type ResponseFeedback = {
-  kind: "correct" | "incorrect";
-  message: string;
-  token: number;
-} | null;
-
-type Shape =
-  | {
-      type: "circle" | "ring";
-      id: string;
-      x: number;
-      y: number;
-      rotation: number;
-      color: string;
-      radius: number;
+    if (!storedRecords) {
+      return [];
     }
-  | {
-      type: Exclude<ShapeType, "circle" | "ring">;
-      id: string;
-      x: number;
-      y: number;
-      rotation: number;
-      color: string;
-      width: number;
-      height: number;
-    };
 
-const practicePresets = [
-  {
-    id: "steady-sequence",
-    name: "Steady sequence",
-    description: "Slow one-target-per-beat stepping for calibration.",
-    exerciseMode: "sequential",
-    bpm: 54,
-    beatsPerTarget: 1,
-    sessionDurationMinutes: 3,
-    tempoLadderEnabled: false,
-    tempoLadderStepBpm: 4,
-    tempoLadderIntervalSeconds: 60,
-  },
-  {
-    id: "anchor-return",
-    name: "Anchor return",
-    description: "Return to target 1 every fourth shift to train re-centering.",
-    exerciseMode: "anchor-return",
-    bpm: 60,
-    beatsPerTarget: 2,
-    sessionDurationMinutes: 3,
-    tempoLadderEnabled: false,
-    tempoLadderStepBpm: 4,
-    tempoLadderIntervalSeconds: 60,
-    anchorReturnInterval: 4,
-  },
-  {
-    id: "feature-switch",
-    name: "Feature switch",
-    description: "Alternate by feature class with a gentle tempo ladder.",
-    exerciseMode: "alternating-feature",
-    bpm: 56,
-    beatsPerTarget: 2,
-    sessionDurationMinutes: 5,
-    tempoLadderEnabled: true,
-    tempoLadderStepBpm: 4,
-    tempoLadderIntervalSeconds: 60,
-    alternatingPattern: "triangle-circle",
-  },
-  {
-    id: "memory-replay",
-    name: "Memory replay",
-    description: "Preview six targets, then click them back in order.",
-    exerciseMode: "memory-replay",
-    bpm: 60,
-    beatsPerTarget: 1,
-    sessionDurationMinutes: 3,
-    tempoLadderEnabled: false,
-    tempoLadderStepBpm: 4,
-    tempoLadderIntervalSeconds: 60,
-    memorySequenceLength: 6,
-  },
-] satisfies PracticePreset[];
+    const parsed = JSON.parse(storedRecords);
 
-function getCurrentTargetIndex(
-  exerciseMode: ExerciseMode,
-  movementStep: number,
-  shapes: Shape[],
-  anchorReturnInterval: AnchorReturnInterval,
-  alternatingPattern: AlternatingPattern,
-) {
-  const shapeCount = shapes.length;
-
-  if (
-    exerciseMode === "free" ||
-    exerciseMode === "memory-replay" ||
-    shapeCount === 0
-  ) {
-    return null;
+    return Array.isArray(parsed) ? (parsed as SessionRecord[]).slice(0, 5) : [];
+  } catch {
+    return [];
   }
-
-  if (exerciseMode === "sequential" || shapeCount === 1) {
-    return movementStep % shapeCount;
-  }
-
-  if (movementStep === 0 || movementStep % anchorReturnInterval === 0) {
-    return 0;
-  }
-
-  if (exerciseMode === "anchor-return") {
-    return ((movementStep - 1) % (shapeCount - 1)) + 1;
-  }
-
-  return getAlternatingTargetIndex(shapes, movementStep, alternatingPattern);
-}
-
-function getExerciseLabel(exerciseMode: ExerciseMode) {
-  if (exerciseMode === "sequential") {
-    return "Sequential";
-  }
-
-  if (exerciseMode === "anchor-return") {
-    return "Anchor return";
-  }
-
-  if (exerciseMode === "alternating-feature") {
-    return "Alternating feature";
-  }
-
-  if (exerciseMode === "memory-replay") {
-    return "Memory replay";
-  }
-
-  return "Free";
-}
-
-function getAlternatingTargetIndex(
-  shapes: Shape[],
-  movementStep: number,
-  pattern: AlternatingPattern,
-) {
-  const firstClass =
-    pattern === "triangle-circle"
-      ? shapes
-          .map((shape, index) => ({ shape, index }))
-          .filter(({ shape }) => shape.type === "triangle")
-      : shapes
-          .map((shape, index) => ({ shape, index }))
-          .filter(({ shape }) => isWarmColor(shape.color));
-  const secondClass =
-    pattern === "triangle-circle"
-      ? shapes
-          .map((shape, index) => ({ shape, index }))
-          .filter(({ shape }) => shape.type === "circle")
-      : shapes
-          .map((shape, index) => ({ shape, index }))
-          .filter(({ shape }) => !isWarmColor(shape.color));
-  const activeClass = movementStep % 2 === 0 ? firstClass : secondClass;
-  const fallbackClass = movementStep % 2 === 0 ? secondClass : firstClass;
-  const targetClass = activeClass.length > 0 ? activeClass : fallbackClass;
-
-  if (targetClass.length === 0) {
-    return movementStep % shapes.length;
-  }
-
-  return targetClass[Math.floor(movementStep / 2) % targetClass.length]!.index;
-}
-
-function getAlternatingPatternLabel(pattern: AlternatingPattern) {
-  if (pattern === "triangle-circle") {
-    return "Triangle / circle";
-  }
-
-  return "Warm / cool";
-}
-
-function getMemoryPhaseLabel(
-  phase: MemoryPhase,
-  recallIndex: number,
-  sequenceLength: number,
-) {
-  if (phase === "preview") {
-    return "Previewing sequence";
-  }
-
-  if (phase === "recall") {
-    return `Recall step ${Math.min(recallIndex + 1, sequenceLength)}/${sequenceLength}`;
-  }
-
-  if (phase === "complete") {
-    return "Sequence complete";
-  }
-
-  return "Ready to preview";
-}
-
-function isWarmColor(color: string) {
-  return ["#ff6b6b", "#f59f00", "#ffd43b", "#f783ac", "#ffa94d"].includes(
-    color,
-  );
 }
 
 export default function App() {
@@ -424,7 +140,9 @@ export default function App() {
   const [sessionRemainingSeconds, setSessionRemainingSeconds] = useState(3 * 60);
   const [isSessionRunning, setIsSessionRunning] = useState(false);
   const [sessionCompleted, setSessionCompleted] = useState(false);
-  const [sessionRecords, setSessionRecords] = useState<SessionRecord[]>([]);
+  const [sessionRecords, setSessionRecords] = useState<SessionRecord[]>(
+    loadStoredSessionRecords,
+  );
   const [tempoLadderEnabled, setTempoLadderEnabled] = useState(false);
   const [tempoLadderBaseBpm, setTempoLadderBaseBpm] = useState(60);
   const [tempoLadderStepBpm, setTempoLadderStepBpm] =
@@ -697,6 +415,13 @@ export default function App() {
     ].slice(0, 5));
     sessionCompletionLoggedRef.current = true;
   }, [sessionCompleted]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      SESSION_RECORDS_STORAGE_KEY,
+      JSON.stringify(sessionRecords),
+    );
+  }, [sessionRecords]);
 
   useEffect(() => {
     return () => {
@@ -986,6 +711,19 @@ export default function App() {
       correct: responseStats.correct,
       accuracy: responseAccuracy,
     };
+  }
+
+  function exportSessionLog() {
+    const blob = new Blob([JSON.stringify(sessionRecords, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `random-shapes-session-log-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   function handleShapeSelect(index: number) {
@@ -1564,6 +1302,15 @@ export default function App() {
                 className="secondary-button"
                 type="button"
                 disabled={sessionRecords.length === 0}
+                onClick={exportSessionLog}
+              >
+                Export log
+              </button>
+
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={sessionRecords.length === 0}
                 onClick={() => setSessionRecords([])}
               >
                 Clear log
@@ -1885,104 +1632,43 @@ export default function App() {
           </div>
         </section>
 
-        <section className="board-frame" aria-label="Generated whiteboard">
-          <div className="board-meta">
-            <span>Board {boardWidth} x {boardHeight}</span>
-            <span>
-              {shapeCount} shapes • {enabledShapeTypes.length} types • {paletteTheme}
-              {" palette"} • {gridMode === "none" ? "no grid" : `${gridMode} grid`}
-              {effectiveShowLabels ? ` • labels: ${effectiveLabelType}` : ""}
-              {exerciseMode !== "free"
-                ? currentTargetIndex !== null
-                  ? ` • target ${currentTargetIndex + 1}`
-                  : ""
-                : ""}
-              {exerciseMode === "anchor-return" ? " • anchor 1" : ""}
-              {exerciseMode === "alternating-feature"
-                ? ` • ${getAlternatingPatternLabel(alternatingPattern)}`
-                : ""}
-              {exerciseMode === "memory-replay"
-                ? ` • ${getMemoryPhaseLabel(memoryPhase, memoryRecallIndex, memorySequence.length)}`
-                : ""}
-            </span>
-          </div>
-          <div className="board-stage">
-            {visualPulseEnabled && isMetronomeRunning ? (
-              <div
-                key={pulseToken}
-                className={`beat-pulse${lastPulseAccent ? " is-accent" : ""}`}
-              />
-            ) : null}
-            {showAlert ? (
-              <div className="board-alert" role="status" aria-live="polite">
-                Alert #{alertCount}
-              </div>
-            ) : null}
-            {responseFeedback ? (
-              <div
-                key={responseFeedback.token}
-                className={`response-feedback is-${responseFeedback.kind}`}
-                role="status"
-                aria-live="polite"
-              >
-                {responseFeedback.message}
-              </div>
-            ) : null}
-            <div
-              className="board-surface"
-              style={{ aspectRatio: `${boardWidth} / ${boardHeight}` }}
-            >
-              <svg
-                viewBox={`0 0 ${boardWidth} ${boardHeight}`}
-                role="img"
-                aria-label={`Whiteboard containing ${shapeCount} random shapes`}
-                preserveAspectRatio="xMidYMid meet"
-              >
-                <rect width={boardWidth} height={boardHeight} fill="#fffdf8" />
-                <GridPattern
-                  mode={gridMode}
-                  width={boardWidth}
-                  height={boardHeight}
-                  opacity={gridOpacity}
-                />
-                {shapes.map((shape, index) => (
-                  <ShapeMark
-                    key={shape.id}
-                    shape={shape}
-                    borderStyleMode={borderStyleMode}
-                    borderColor={borderColor}
-                    cornerStyle={cornerStyle}
-                    fillStyle={fillStyle}
-                    fillOpacity={fillOpacity}
-                    centerMarkerStyle={centerMarkerStyle}
-                    centerMarkerSize={centerMarkerSize}
-                    centerMarkerColor={centerMarkerColor}
-                    highlighted={currentTargetIndex === index}
-                    anchored={anchorIndex === index}
-                    selectable={
-                      responseTrackingEnabled &&
-                      exerciseMode !== "free" &&
-                      (exerciseMode !== "memory-replay" ||
-                        memoryPhase === "recall")
-                    }
-                    onSelect={() => handleShapeSelect(index)}
-                  />
-                ))}
-                {effectiveShowLabels
-                  ? shapes.map((shape, index) => (
-                      <ShapeLabel
-                        key={`label-${shape.id}`}
-                        shape={shape}
-                        label={labels[index] ?? ""}
-                        active={currentTargetIndex === index}
-                        anchored={anchorIndex === index}
-                      />
-                    ))
-                  : null}
-              </svg>
-            </div>
-          </div>
-        </section>
+        <Whiteboard
+          boardWidth={boardWidth}
+          boardHeight={boardHeight}
+          shapeCount={shapeCount}
+          enabledShapeTypeCount={enabledShapeTypes.length}
+          paletteTheme={paletteTheme}
+          gridMode={gridMode}
+          gridOpacity={gridOpacity}
+          effectiveShowLabels={effectiveShowLabels}
+          effectiveLabelType={effectiveLabelType}
+          exerciseMode={exerciseMode}
+          currentTargetIndex={currentTargetIndex}
+          anchorIndex={anchorIndex}
+          alternatingPattern={alternatingPattern}
+          memoryPhase={memoryPhase}
+          memoryRecallIndex={memoryRecallIndex}
+          memorySequenceLength={memorySequence.length}
+          visualPulseEnabled={visualPulseEnabled}
+          isMetronomeRunning={isMetronomeRunning}
+          pulseToken={pulseToken}
+          lastPulseAccent={lastPulseAccent}
+          showAlert={showAlert}
+          alertCount={alertCount}
+          responseFeedback={responseFeedback}
+          shapes={shapes}
+          labels={labels}
+          responseTrackingEnabled={responseTrackingEnabled}
+          borderStyleMode={borderStyleMode}
+          borderColor={borderColor}
+          cornerStyle={cornerStyle}
+          fillStyle={fillStyle}
+          fillOpacity={fillOpacity}
+          centerMarkerStyle={centerMarkerStyle}
+          centerMarkerSize={centerMarkerSize}
+          centerMarkerColor={centerMarkerColor}
+          onShapeSelect={handleShapeSelect}
+        />
       </section>
     </main>
   );
@@ -2154,735 +1840,4 @@ function renderMarkdownInline(text: string) {
   }
 
   return nodes;
-}
-
-function GridPattern({
-  mode,
-  width,
-  height,
-  opacity,
-}: {
-  mode: GridMode;
-  width: number;
-  height: number;
-  opacity: number;
-}) {
-  if (mode === "none") {
-    return null;
-  }
-
-  if (mode === "square") {
-    return <SquareGrid width={width} height={height} opacity={opacity} />;
-  }
-
-  return <HexGrid width={width} height={height} opacity={opacity} />;
-}
-
-function SquareGrid({
-  width,
-  height,
-  opacity,
-}: {
-  width: number;
-  height: number;
-  opacity: number;
-}) {
-  const spacing = clampInt(String(Math.round(Math.min(width, height) / 24)), 28, 72);
-  const columns = Math.floor(width / spacing);
-  const rows = Math.floor(height / spacing);
-
-  return (
-    <g opacity={opacity} stroke="#94a3b8" strokeWidth="1">
-      {Array.from({ length: columns }, (_, index) => {
-        const x = (index + 1) * spacing;
-        return <line key={`v-${x}`} x1={x} y1={0} x2={x} y2={height} />;
-      })}
-      {Array.from({ length: rows }, (_, index) => {
-        const y = (index + 1) * spacing;
-        return <line key={`h-${y}`} x1={0} y1={y} x2={width} y2={y} />;
-      })}
-    </g>
-  );
-}
-
-function HexGrid({
-  width,
-  height,
-  opacity,
-}: {
-  width: number;
-  height: number;
-  opacity: number;
-}) {
-  const size = clampInt(String(Math.round(Math.min(width, height) / 34)), 18, 34);
-  const hexWidth = Math.sqrt(3) * size;
-  const verticalStep = size * 1.5;
-  const rows = Math.ceil(height / verticalStep) + 2;
-  const columns = Math.ceil(width / hexWidth) + 2;
-
-  return (
-    <g opacity={opacity} fill="none" stroke="#94a3b8" strokeWidth="1">
-      {Array.from({ length: rows }, (_, rowIndex) => {
-        const y = rowIndex * verticalStep - size;
-        const rowOffset = rowIndex % 2 === 0 ? 0 : hexWidth / 2;
-
-        return Array.from({ length: columns }, (_, columnIndex) => {
-          const x = columnIndex * hexWidth - hexWidth + rowOffset;
-          return (
-            <polygon
-              key={`hex-${rowIndex}-${columnIndex}`}
-              points={polygonPoints(6, size, x, y, Math.PI / 6)}
-            />
-          );
-        });
-      })}
-    </g>
-  );
-}
-
-function ShapeMark({
-  shape,
-  borderStyleMode,
-  borderColor,
-  cornerStyle,
-  fillStyle,
-  fillOpacity,
-  centerMarkerStyle,
-  centerMarkerSize,
-  centerMarkerColor,
-  highlighted,
-  anchored,
-  selectable,
-  onSelect,
-}: {
-  shape: Shape;
-  borderStyleMode: BorderStyleMode;
-  borderColor: string;
-  cornerStyle: CornerStyle;
-  fillStyle: FillStyle;
-  fillOpacity: number;
-  centerMarkerStyle: CenterMarkerStyle;
-  centerMarkerSize: number;
-  centerMarkerColor: string;
-  highlighted: boolean;
-  anchored: boolean;
-  selectable: boolean;
-  onSelect: () => void;
-}) {
-  const borderProps = getShapeBorderProps(
-    borderStyleMode,
-    borderColor,
-    fillStyle,
-    shape.color,
-  );
-  const fillProps = getShapeFillProps(shape.color, fillStyle, fillOpacity);
-  const cornerRadius = getCornerRadius(shape, cornerStyle);
-
-  return (
-    <g
-      className={selectable ? "shape-mark is-selectable" : "shape-mark"}
-      role={selectable ? "button" : undefined}
-      tabIndex={selectable ? 0 : undefined}
-      transform={`translate(${shape.x} ${shape.y}) rotate(${shape.rotation})`}
-      onClick={selectable ? onSelect : undefined}
-      onKeyDown={
-        selectable
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onSelect();
-              }
-            }
-          : undefined
-      }
-    >
-      {highlighted ? (
-        <ShapeHalo shape={shape} variant="active" />
-      ) : anchored ? (
-        <ShapeHalo shape={shape} variant="anchor" />
-      ) : null}
-      {shape.type === "circle" ? (
-        <circle r={shape.radius} {...fillProps} {...borderProps} />
-      ) : null}
-      {shape.type === "ring" ? (
-        <>
-          <circle r={shape.radius} {...fillProps} {...borderProps} />
-          <circle
-            r={shape.radius * 0.54}
-            fill="#fffdf8"
-            stroke={borderStyleMode === "none" ? shape.color : borderColor}
-            strokeWidth={borderStyleMode === "none" ? 0 : 3}
-          />
-        </>
-      ) : null}
-      {shape.type === "rectangle" ? (
-        <rect
-          x={-shape.width / 2}
-          y={-shape.height / 2}
-          width={shape.width}
-          height={shape.height}
-          rx={cornerRadius}
-          {...fillProps}
-          {...borderProps}
-        />
-      ) : null}
-      {shape.type === "capsule" ? (
-        <rect
-          x={-shape.width / 2}
-          y={-shape.height / 2}
-          width={shape.width}
-          height={shape.height}
-          rx={cornerRadius}
-          {...fillProps}
-          {...borderProps}
-        />
-      ) : null}
-      {shape.type === "triangle" ? (
-        <polygon
-          points={trianglePoints(shape.width, shape.height)}
-          {...fillProps}
-          {...borderProps}
-        />
-      ) : null}
-      {shape.type === "diamond" ? (
-        <polygon
-          points={polygonPoints(4, shape.width / 2)}
-          {...fillProps}
-          {...borderProps}
-        />
-      ) : null}
-      {shape.type === "star" ? (
-        <polygon
-          points={starPoints(shape.width / 2)}
-          {...fillProps}
-          {...borderProps}
-        />
-      ) : null}
-      {shape.type === "pentagon" ? (
-        <polygon
-          points={polygonPoints(5, shape.width / 2)}
-          {...fillProps}
-          {...borderProps}
-        />
-      ) : null}
-      {shape.type === "hexagon" ? (
-        <polygon
-          points={polygonPoints(6, shape.width / 2)}
-          {...fillProps}
-          {...borderProps}
-        />
-      ) : null}
-      <CenterMarker
-        styleMode={centerMarkerStyle}
-        size={centerMarkerSize}
-        color={centerMarkerColor}
-      />
-    </g>
-  );
-}
-
-function ShapeHalo({
-  shape,
-  variant,
-}: {
-  shape: Shape;
-  variant: "active" | "anchor";
-}) {
-  const stroke =
-    variant === "active"
-      ? "rgba(31, 141, 108, 0.35)"
-      : "rgba(245, 159, 0, 0.36)";
-  const strokeWidth = variant === "active" ? 18 : 10;
-  const strokeDasharray = variant === "anchor" ? "16 12" : undefined;
-
-  if ("radius" in shape) {
-    return (
-      <circle
-        r={shape.radius + 18}
-        fill="none"
-        stroke={stroke}
-        strokeDasharray={strokeDasharray}
-        strokeWidth={strokeWidth}
-      />
-    );
-  }
-
-  if (shape.type === "rectangle" || shape.type === "capsule") {
-    return (
-      <rect
-        x={-shape.width / 2 - 12}
-        y={-shape.height / 2 - 12}
-        width={shape.width + 24}
-        height={shape.height + 24}
-        rx="18"
-        fill="none"
-        stroke={stroke}
-        strokeDasharray={strokeDasharray}
-        strokeWidth={strokeWidth}
-      />
-    );
-  }
-
-  return (
-    <polygon
-      points={getPolygonHaloPoints(shape)}
-      fill="none"
-      stroke={stroke}
-      strokeDasharray={strokeDasharray}
-      strokeWidth={strokeWidth}
-      strokeLinejoin="round"
-    />
-  );
-}
-
-function getPolygonHaloPoints(shape: Exclude<Shape, { type: "circle" | "ring" }>) {
-  if (shape.type === "triangle") {
-    return trianglePoints(shape.width + 22, shape.height + 22);
-  }
-
-  if (shape.type === "diamond") {
-    return polygonPoints(4, shape.width / 2 + 16);
-  }
-
-  if (shape.type === "star") {
-    return starPoints(shape.width / 2 + 18);
-  }
-
-  return polygonPoints(shape.type === "pentagon" ? 5 : 6, shape.width / 2 + 16);
-}
-
-function CenterMarker({
-  styleMode,
-  size,
-  color,
-}: {
-  styleMode: CenterMarkerStyle;
-  size: number;
-  color: string;
-}) {
-  if (styleMode === "none") {
-    return null;
-  }
-
-  if (styleMode === "ring") {
-    return (
-      <circle
-        r={size}
-        fill="none"
-        stroke={color}
-        strokeWidth={Math.max(2, size * 0.28)}
-      />
-    );
-  }
-
-  if (styleMode === "crosshair") {
-    const arm = size * 1.3;
-    const strokeWidth = Math.max(2, size * 0.25);
-
-    return (
-      <g stroke={color} strokeLinecap="round" strokeWidth={strokeWidth}>
-        <line x1={-arm} y1={0} x2={arm} y2={0} />
-        <line x1={0} y1={-arm} x2={0} y2={arm} />
-        <circle r={Math.max(1.5, size * 0.28)} fill={color} stroke="none" />
-      </g>
-    );
-  }
-
-  return <circle r={size} fill={color} />;
-}
-
-function getShapeBorderProps(
-  borderStyleMode: BorderStyleMode,
-  borderColor: string,
-  fillStyle: FillStyle,
-  shapeColor: string,
-) {
-  if (borderStyleMode === "none" && fillStyle !== "outline") {
-    return undefined;
-  }
-
-  const strokeWidth =
-    borderStyleMode === "thin"
-      ? 2
-      : borderStyleMode === "bold"
-        ? 7
-        : borderStyleMode === "dashed"
-          ? 4
-          : 4;
-
-  return {
-    stroke: borderStyleMode === "none" ? shapeColor : borderColor,
-    strokeDasharray: borderStyleMode === "dashed" ? "14 10" : undefined,
-    strokeLinejoin: "round" as const,
-    strokeWidth,
-  };
-}
-
-function getShapeFillProps(
-  color: string,
-  fillStyle: FillStyle,
-  fillOpacity: number,
-) {
-  if (fillStyle === "outline") {
-    return { fill: "none" };
-  }
-
-  return {
-    fill: color,
-    fillOpacity: fillStyle === "translucent" ? fillOpacity : 1,
-  };
-}
-
-function getCornerRadius(shape: Shape, cornerStyle: CornerStyle) {
-  if (!("width" in shape)) {
-    return 0;
-  }
-
-  if (shape.type === "capsule") {
-    return shape.height / 2;
-  }
-
-  if (cornerStyle === "sharp") {
-    return 0;
-  }
-
-  if (cornerStyle === "round") {
-    return Math.min(shape.width, shape.height) * 0.32;
-  }
-
-  return Math.min(14, Math.min(shape.width, shape.height) * 0.18);
-}
-
-function ShapeLabel({
-  shape,
-  label,
-  active,
-  anchored,
-}: {
-  shape: Shape;
-  label: string;
-  active: boolean;
-  anchored: boolean;
-}) {
-  const centerY = shape.y + getLabelOffset(shape);
-  const pillWidth = Math.max(86, label.length * LABEL_FONT_SIZE * 0.64 + 28);
-  const pillHeight = 34;
-
-  return (
-    <g className="label-mark">
-      <rect
-        x={shape.x - pillWidth / 2}
-        y={centerY - pillHeight / 2}
-        width={pillWidth}
-        height={pillHeight}
-        rx={pillHeight / 2}
-        fill={
-          active
-            ? "rgba(227, 247, 241, 0.98)"
-            : anchored
-              ? "rgba(255, 246, 224, 0.98)"
-              : "rgba(255, 255, 255, 0.9)"
-        }
-        stroke={
-          active
-            ? "rgba(20, 96, 76, 0.32)"
-            : anchored
-              ? "rgba(245, 159, 0, 0.32)"
-              : "rgba(36, 48, 65, 0.12)"
-        }
-      />
-      <text
-        x={shape.x}
-        y={centerY + 1}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fontSize={LABEL_FONT_SIZE}
-        fontWeight="600"
-        fill={active ? "#155c49" : anchored ? "#7c4f08" : "#233043"}
-      >
-        {label}
-      </text>
-    </g>
-  );
-}
-
-function trianglePoints(width: number, height: number) {
-  return [
-    `0 ${-height / 2}`,
-    `${width / 2} ${height / 2}`,
-    `${-width / 2} ${height / 2}`,
-  ].join(" ");
-}
-
-function polygonPoints(
-  sides: number,
-  radius: number,
-  offsetX = 0,
-  offsetY = 0,
-  initialAngle = -Math.PI / 2,
-) {
-  return Array.from({ length: sides }, (_, index) => {
-    const angle = initialAngle + (index * Math.PI * 2) / sides;
-    const x = offsetX + Math.cos(angle) * radius;
-    const y = offsetY + Math.sin(angle) * radius;
-    return `${x} ${y}`;
-  }).join(" ");
-}
-
-function starPoints(radius: number) {
-  const innerRadius = radius * 0.48;
-
-  return Array.from({ length: 10 }, (_, index) => {
-    const activeRadius = index % 2 === 0 ? radius : innerRadius;
-    const angle = -Math.PI / 2 + (index * Math.PI) / 5;
-    const x = Math.cos(angle) * activeRadius;
-    const y = Math.sin(angle) * activeRadius;
-    return `${x} ${y}`;
-  }).join(" ");
-}
-
-function generateShapes(
-  count: number,
-  seed: number,
-  boardWidth: number,
-  boardHeight: number,
-  enabledTypes: ShapeType[],
-  paletteTheme: PaletteTheme,
-  sizeMode: ShapeSizeMode,
-  rotationMode: RotationMode,
-) {
-  const random = mulberry32(seed);
-  const shapeTypes =
-    enabledTypes.length > 0
-      ? enabledTypes
-      : shapeTypeOptions.map(({ type }) => type);
-  const palette = paletteThemes[paletteTheme];
-  const padding = clampInt(
-    String(Math.round(Math.min(boardWidth, boardHeight) * 0.055)),
-    42,
-    120,
-  );
-
-  return Array.from({ length: count }, (_, index) => {
-    const type = shapeTypes[Math.floor(random() * shapeTypes.length)]!;
-    const x = lerp(padding, boardWidth - padding, random());
-    const y = lerp(padding, boardHeight - padding, random());
-    const rotation = getShapeRotation(random, rotationMode);
-    const color = palette[Math.floor(random() * palette.length)]!;
-    const scale =
-      (Math.min(boardWidth, boardHeight) / DEFAULT_BOARD_HEIGHT) *
-      getShapeSizeScale(random, sizeMode);
-
-    if (type === "circle" || type === "ring") {
-      return {
-        type,
-        id: `shape-${index}`,
-        x,
-        y,
-        rotation,
-        color,
-        radius: lerp(24, 68, random()) * scale,
-      } satisfies Shape;
-    }
-
-    if (type === "rectangle" || type === "capsule") {
-      return {
-        type,
-        id: `shape-${index}`,
-        x,
-        y,
-        rotation,
-        color,
-        width: lerp(type === "capsule" ? 92 : 64, 168, random()) * scale,
-        height: lerp(type === "capsule" ? 42 : 44, 118, random()) * scale,
-      } satisfies Shape;
-    }
-
-    const baseSize = lerp(type === "star" ? 80 : 72, 150, random()) * scale;
-    return {
-      type,
-      id: `shape-${index}`,
-      x,
-      y,
-      rotation,
-      color,
-      width: baseSize,
-      height: type === "triangle" ? baseSize * 0.9 : baseSize,
-    } satisfies Shape;
-  });
-}
-
-function getShapeRotation(random: () => number, rotationMode: RotationMode) {
-  if (rotationMode === "none") {
-    return 0;
-  }
-
-  if (rotationMode === "subtle") {
-    return Math.round(lerp(-18, 18, random()));
-  }
-
-  return Math.round(random() * 360);
-}
-
-function getShapeSizeScale(random: () => number, sizeMode: ShapeSizeMode) {
-  if (sizeMode === "small") {
-    return 0.72;
-  }
-
-  if (sizeMode === "medium") {
-    return 0.96;
-  }
-
-  if (sizeMode === "large") {
-    return 1.24;
-  }
-
-  return lerp(0.62, 1.32, random());
-}
-
-function generateLabels(count: number, seed: number, labelType: LabelType) {
-  const random = mulberry32(seed ^ 0x9e3779b9);
-
-  return Array.from({ length: count }, (_, index) => {
-    if (labelType === "number") {
-      return String(index + 1);
-    }
-
-    return wordBank[Math.floor(random() * wordBank.length)] ?? "signal";
-  });
-}
-
-function generateMemorySequence(
-  shapeCount: number,
-  seed: number,
-  sequenceLength: MemorySequenceLength,
-) {
-  if (shapeCount === 0) {
-    return [];
-  }
-
-  const random = mulberry32(seed ^ 0x51f15e);
-  const sequence: number[] = [];
-
-  for (let index = 0; index < sequenceLength; index++) {
-    let nextTarget = Math.floor(random() * shapeCount);
-
-    if (shapeCount > 1 && sequence[index - 1] === nextTarget) {
-      nextTarget = (nextTarget + 1) % shapeCount;
-    }
-
-    sequence.push(nextTarget);
-  }
-
-  return sequence;
-}
-
-function getLabelOffset(shape: Shape) {
-  if ("radius" in shape) {
-    return shape.radius + 28;
-  }
-
-  if (shape.type === "rectangle") {
-    return shape.height / 2 + 28;
-  }
-
-  return Math.max(shape.width, shape.height) / 2 + 28;
-}
-
-function formatSessionTime(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-
-  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
-}
-
-function formatTempoLadderInterval(seconds: number) {
-  if (seconds < 60) {
-    return `${seconds} sec`;
-  }
-
-  const minutes = seconds / 60;
-  return `${minutes} min`;
-}
-
-function getTempoLadderBpm(
-  baseBpm: number,
-  stepBpm: TempoLadderStepBpm,
-  intervalSeconds: TempoLadderIntervalSeconds,
-  elapsedSeconds: number,
-) {
-  const stageIndex = Math.max(0, Math.floor(elapsedSeconds / intervalSeconds));
-
-  return Math.min(MAX_BPM, baseBpm + stageIndex * stepBpm);
-}
-
-function normalizeAlertWindow(min: number, max: number) {
-  const lower = Math.max(MIN_ALERT_SECONDS, Math.min(min, max));
-  const upper = Math.min(
-    MAX_ALERT_SECONDS,
-    Math.max(lower + 0.1, Math.max(min, max)),
-  );
-
-  return [lower, upper] as const;
-}
-
-function playMetronomeTick(
-  audioContext: AudioContext | null,
-  isAccent: boolean,
-) {
-  if (!audioContext) {
-    return;
-  }
-
-  const startAt = audioContext.currentTime;
-  const oscillator = audioContext.createOscillator();
-  const gainNode = audioContext.createGain();
-
-  oscillator.type = "triangle";
-  oscillator.frequency.setValueAtTime(isAccent ? 1046 : 784, startAt);
-  gainNode.gain.setValueAtTime(0.0001, startAt);
-  gainNode.gain.exponentialRampToValueAtTime(0.18, startAt + 0.008);
-  gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.09);
-
-  oscillator.connect(gainNode);
-  gainNode.connect(audioContext.destination);
-  oscillator.start(startAt);
-  oscillator.stop(startAt + 0.1);
-}
-
-function clampFloat(value: string, min: number, max: number) {
-  const parsed = Number.parseFloat(value);
-
-  if (Number.isNaN(parsed)) {
-    return min;
-  }
-
-  return Math.max(min, Math.min(max, parsed));
-}
-
-function clampInt(value: string, min: number, max: number) {
-  const parsed = Number.parseInt(value, 10);
-
-  if (Number.isNaN(parsed)) {
-    return min;
-  }
-
-  return Math.max(min, Math.min(max, parsed));
-}
-
-function lerp(min: number, max: number, amount: number) {
-  return min + (max - min) * amount;
-}
-
-function randomSeed() {
-  return Math.floor(Math.random() * 1_000_000_000);
-}
-
-function mulberry32(seed: number) {
-  return () => {
-    let value = (seed += 0x6d2b79f5);
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
 }

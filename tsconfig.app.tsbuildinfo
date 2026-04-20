@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/audio.ts","./src/config.ts","./src/exerciselogic.ts","./src/logic.test.ts","./src/main.tsx","./src/math.ts","./src/sessionlogic.ts","./src/shapelogic.ts","./src/types.ts","./src/vite-env.d.ts","./src/components/whiteboard.tsx"],"version":"5.9.3"}

@@ -57,9 +57,14 @@ const wordBank = [
 type ShapeType = "circle" | "rectangle" | "triangle" | "pentagon" | "hexagon";
 type GridMode = "none" | "square" | "hex";
 type LabelType = "word" | "number";
-type ExerciseMode = "free" | "sequential" | "anchor-return";
+type ExerciseMode =
+  | "free"
+  | "sequential"
+  | "anchor-return"
+  | "alternating-feature";
 type BeatsPerTarget = 1 | 2 | 4;
 type AnchorReturnInterval = 4 | 6 | 8;
+type AlternatingPattern = "triangle-circle" | "warm-cool";
 
 type Shape =
   | {
@@ -85,9 +90,12 @@ type Shape =
 function getCurrentTargetIndex(
   exerciseMode: ExerciseMode,
   movementStep: number,
-  shapeCount: number,
+  shapes: Shape[],
   anchorReturnInterval: AnchorReturnInterval,
+  alternatingPattern: AlternatingPattern,
 ) {
+  const shapeCount = shapes.length;
+
   if (exerciseMode === "free" || shapeCount === 0) {
     return null;
   }
@@ -100,7 +108,11 @@ function getCurrentTargetIndex(
     return 0;
   }
 
-  return ((movementStep - 1) % (shapeCount - 1)) + 1;
+  if (exerciseMode === "anchor-return") {
+    return ((movementStep - 1) % (shapeCount - 1)) + 1;
+  }
+
+  return getAlternatingTargetIndex(shapes, movementStep, alternatingPattern);
 }
 
 function getExerciseLabel(exerciseMode: ExerciseMode) {
@@ -112,7 +124,57 @@ function getExerciseLabel(exerciseMode: ExerciseMode) {
     return "Anchor return";
   }
 
+  if (exerciseMode === "alternating-feature") {
+    return "Alternating feature";
+  }
+
   return "Free";
+}
+
+function getAlternatingTargetIndex(
+  shapes: Shape[],
+  movementStep: number,
+  pattern: AlternatingPattern,
+) {
+  const firstClass =
+    pattern === "triangle-circle"
+      ? shapes
+          .map((shape, index) => ({ shape, index }))
+          .filter(({ shape }) => shape.type === "triangle")
+      : shapes
+          .map((shape, index) => ({ shape, index }))
+          .filter(({ shape }) => isWarmColor(shape.color));
+  const secondClass =
+    pattern === "triangle-circle"
+      ? shapes
+          .map((shape, index) => ({ shape, index }))
+          .filter(({ shape }) => shape.type === "circle")
+      : shapes
+          .map((shape, index) => ({ shape, index }))
+          .filter(({ shape }) => !isWarmColor(shape.color));
+  const activeClass = movementStep % 2 === 0 ? firstClass : secondClass;
+  const fallbackClass = movementStep % 2 === 0 ? secondClass : firstClass;
+  const targetClass = activeClass.length > 0 ? activeClass : fallbackClass;
+
+  if (targetClass.length === 0) {
+    return movementStep % shapes.length;
+  }
+
+  return targetClass[Math.floor(movementStep / 2) % targetClass.length]!.index;
+}
+
+function getAlternatingPatternLabel(pattern: AlternatingPattern) {
+  if (pattern === "triangle-circle") {
+    return "Triangle / circle";
+  }
+
+  return "Warm / cool";
+}
+
+function isWarmColor(color: string) {
+  return ["#ff6b6b", "#f59f00", "#ffd43b", "#f783ac", "#ffa94d"].includes(
+    color,
+  );
 }
 
 export default function App() {
@@ -138,6 +200,8 @@ export default function App() {
   const [beatsPerTarget, setBeatsPerTarget] = useState<BeatsPerTarget>(1);
   const [anchorReturnInterval, setAnchorReturnInterval] =
     useState<AnchorReturnInterval>(4);
+  const [alternatingPattern, setAlternatingPattern] =
+    useState<AlternatingPattern>("triangle-circle");
   const [isMetronomeRunning, setIsMetronomeRunning] = useState(false);
   const [beatCount, setBeatCount] = useState(0);
   const [pulseToken, setPulseToken] = useState(0);
@@ -289,7 +353,13 @@ export default function App() {
 
   useEffect(() => {
     setBeatCount(0);
-  }, [anchorReturnInterval, beatsPerTarget, exerciseMode, seed]);
+  }, [
+    alternatingPattern,
+    anchorReturnInterval,
+    beatsPerTarget,
+    exerciseMode,
+    seed,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -320,8 +390,9 @@ export default function App() {
   const currentTargetIndex = getCurrentTargetIndex(
     exerciseMode,
     movementStep,
-    shapes.length,
+    shapes,
     anchorReturnInterval,
+    alternatingPattern,
   );
   const anchorIndex = exerciseMode === "anchor-return" ? 0 : null;
   const currentBeatInBar =
@@ -442,6 +513,7 @@ export default function App() {
                     <option value="free">Free practice</option>
                     <option value="sequential">Sequential stepping</option>
                     <option value="anchor-return">Anchor-return drill</option>
+                    <option value="alternating-feature">Alternating-feature drill</option>
                   </select>
                 </label>
 
@@ -476,6 +548,23 @@ export default function App() {
                     <option value="4">Every 4 target steps</option>
                     <option value="6">Every 6 target steps</option>
                     <option value="8">Every 8 target steps</option>
+                  </select>
+                </label>
+
+                <label className="select-field" htmlFor="alternating-pattern">
+                  <span>Alternating pattern</span>
+                  <select
+                    id="alternating-pattern"
+                    value={alternatingPattern}
+                    disabled={exerciseMode !== "alternating-feature"}
+                    onChange={(event) =>
+                      setAlternatingPattern(
+                        event.target.value as AlternatingPattern,
+                      )
+                    }
+                  >
+                    <option value="triangle-circle">Triangle / circle</option>
+                    <option value="warm-cool">Warm / cool color</option>
                   </select>
                 </label>
               </div>
@@ -531,6 +620,11 @@ export default function App() {
                   ) : null}
                   {exerciseMode === "anchor-return" ? (
                     <span className="status-pill">Anchor is target 1</span>
+                  ) : null}
+                  {exerciseMode === "alternating-feature" ? (
+                    <span className="status-pill">
+                      {getAlternatingPatternLabel(alternatingPattern)}
+                    </span>
                   ) : null}
                 </div>
               </div>
@@ -705,6 +799,9 @@ export default function App() {
                 ? ` • target ${currentTargetIndex !== null ? currentTargetIndex + 1 : 1}`
                 : ""}
               {exerciseMode === "anchor-return" ? " • anchor 1" : ""}
+              {exerciseMode === "alternating-feature"
+                ? ` • ${getAlternatingPatternLabel(alternatingPattern)}`
+                : ""}
             </span>
           </div>
           <div className="board-stage">

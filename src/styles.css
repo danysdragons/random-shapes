@@ -152,6 +152,10 @@ select {
   background: linear-gradient(135deg, rgba(255, 248, 226, 0.72), rgba(255, 255, 255, 0.62));
 }
 
+.tempo-ladder-strip {
+  background: linear-gradient(135deg, rgba(232, 242, 255, 0.72), rgba(255, 255, 255, 0.62));
+}
+
 .session-actions {
   display: flex;
   flex-wrap: wrap;
@@ -244,6 +248,11 @@ input[type="range"] {
   width: 18px;
   height: 18px;
   accent-color: #2f7f63;
+}
+
+.ladder-toggle {
+  min-height: 50px;
+  padding: 0 4px;
 }
 
 .select-field {

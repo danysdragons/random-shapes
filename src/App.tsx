@@ -14,6 +14,8 @@ const MIN_BPM = 30;
 const MAX_BPM = 180;
 const LABEL_FONT_SIZE = 24;
 const SESSION_DURATIONS = [1, 3, 5, 10] as const;
+const TEMPO_LADDER_STEPS = [2, 4, 6, 8] as const;
+const TEMPO_LADDER_INTERVALS = [30, 60, 120] as const;
 
 const palette = [
   "#ff6b6b",
@@ -70,6 +72,8 @@ type AlternatingPattern = "triangle-circle" | "warm-cool";
 type MemoryPhase = "idle" | "preview" | "recall" | "complete";
 type MemorySequenceLength = 4 | 6 | 8 | 10;
 type SessionDurationMinutes = (typeof SESSION_DURATIONS)[number];
+type TempoLadderStepBpm = (typeof TEMPO_LADDER_STEPS)[number];
+type TempoLadderIntervalSeconds = (typeof TEMPO_LADDER_INTERVALS)[number];
 type ResponseFeedback = {
   kind: "correct" | "incorrect";
   message: string;
@@ -257,6 +261,12 @@ export default function App() {
   const [sessionRemainingSeconds, setSessionRemainingSeconds] = useState(3 * 60);
   const [isSessionRunning, setIsSessionRunning] = useState(false);
   const [sessionCompleted, setSessionCompleted] = useState(false);
+  const [tempoLadderEnabled, setTempoLadderEnabled] = useState(false);
+  const [tempoLadderBaseBpm, setTempoLadderBaseBpm] = useState(60);
+  const [tempoLadderStepBpm, setTempoLadderStepBpm] =
+    useState<TempoLadderStepBpm>(4);
+  const [tempoLadderIntervalSeconds, setTempoLadderIntervalSeconds] =
+    useState<TempoLadderIntervalSeconds>(60);
   const [isMetronomeRunning, setIsMetronomeRunning] = useState(false);
   const [beatCount, setBeatCount] = useState(0);
   const [pulseToken, setPulseToken] = useState(0);
@@ -456,6 +466,30 @@ export default function App() {
   }, [sessionDurationMinutes]);
 
   useEffect(() => {
+    if (!tempoLadderEnabled || !isSessionRunning) {
+      return;
+    }
+
+    const elapsedSeconds = sessionDurationMinutes * 60 - sessionRemainingSeconds;
+    const nextBpm = getTempoLadderBpm(
+      tempoLadderBaseBpm,
+      tempoLadderStepBpm,
+      tempoLadderIntervalSeconds,
+      elapsedSeconds,
+    );
+
+    setBpm((currentBpm) => (currentBpm === nextBpm ? currentBpm : nextBpm));
+  }, [
+    isSessionRunning,
+    sessionDurationMinutes,
+    sessionRemainingSeconds,
+    tempoLadderBaseBpm,
+    tempoLadderEnabled,
+    tempoLadderIntervalSeconds,
+    tempoLadderStepBpm,
+  ]);
+
+  useEffect(() => {
     if (sessionIntervalRef.current !== null) {
       window.clearInterval(sessionIntervalRef.current);
       sessionIntervalRef.current = null;
@@ -555,6 +589,16 @@ export default function App() {
     responseStats.attempts === 0
       ? 0
       : Math.round((responseStats.correct / responseStats.attempts) * 100);
+  const sessionElapsedSeconds = sessionDurationMinutes * 60 - sessionRemainingSeconds;
+  const tempoLadderStage = tempoLadderEnabled
+    ? Math.floor(sessionElapsedSeconds / tempoLadderIntervalSeconds) + 1
+    : 0;
+  const tempoLadderEndBpm = getTempoLadderBpm(
+    tempoLadderBaseBpm,
+    tempoLadderStepBpm,
+    tempoLadderIntervalSeconds,
+    Math.max(0, sessionDurationMinutes * 60 - 1),
+  );
   const sessionStatus = sessionCompleted
     ? "Session complete"
     : isSessionRunning
@@ -617,6 +661,24 @@ export default function App() {
     }
   }
 
+  function handleTempoLadderToggle(nextValue: boolean) {
+    setTempoLadderEnabled(nextValue);
+
+    if (nextValue) {
+      setTempoLadderBaseBpm(bpm);
+    }
+  }
+
+  function handleTempoChange(nextValue: number) {
+    const nextBpm = Math.round(nextValue);
+
+    setBpm(nextBpm);
+
+    if (tempoLadderEnabled && !isSessionRunning) {
+      setTempoLadderBaseBpm(nextBpm);
+    }
+  }
+
   function resetResponseStats() {
     setResponseStats({ attempts: 0, correct: 0 });
     setResponseFeedback(null);
@@ -642,8 +704,17 @@ export default function App() {
   }
 
   function startSession() {
+    const isFreshSession =
+      sessionRemainingSeconds === 0 ||
+      sessionCompleted ||
+      sessionRemainingSeconds === sessionDurationMinutes * 60;
+
     if (sessionRemainingSeconds === 0 || sessionCompleted) {
       setSessionRemainingSeconds(sessionDurationMinutes * 60);
+    }
+
+    if (tempoLadderEnabled && isFreshSession) {
+      setTempoLadderBaseBpm(bpm);
     }
 
     setSessionCompleted(false);
@@ -849,15 +920,93 @@ export default function App() {
 
             <RangeControl
               label="Tempo"
-              output={`${bpm} BPM`}
+              output={
+                tempoLadderEnabled && isSessionRunning
+                  ? `${bpm} BPM (ladder)`
+                  : `${bpm} BPM`
+              }
               inputId="bpm"
               rangeId="bpm-range"
               value={bpm}
               min={MIN_BPM}
               max={MAX_BPM}
               step={1}
-              onChange={(value) => setBpm(Math.round(value))}
+              disabled={tempoLadderEnabled && isSessionRunning}
+              onChange={handleTempoChange}
             />
+
+            <div className="metrics-strip tempo-ladder-strip" aria-live="polite">
+              <div>
+                <p className="metronome-kicker">Tempo ladder</p>
+                <strong>
+                  {tempoLadderEnabled
+                    ? isSessionRunning
+                      ? `Stage ${tempoLadderStage}: ${bpm} BPM`
+                      : `${tempoLadderBaseBpm}-${tempoLadderEndBpm} BPM planned`
+                    : "Manual tempo"}
+                </strong>
+                <span>
+                  {tempoLadderEnabled
+                    ? `During timed sessions, BPM rises by ${tempoLadderStepBpm} every ${formatTempoLadderInterval(tempoLadderIntervalSeconds)}.`
+                    : "Keep tempo fixed, or enable a gradual ladder for timed practice blocks."}
+                </span>
+              </div>
+              <div className="session-actions">
+                <label className="checkbox-field ladder-toggle">
+                  <input
+                    type="checkbox"
+                    checked={tempoLadderEnabled}
+                    onChange={(event) =>
+                      handleTempoLadderToggle(event.target.checked)
+                    }
+                  />
+                  <span>Use ladder</span>
+                </label>
+
+                <label className="select-field compact-select" htmlFor="tempo-ladder-step">
+                  <span>Step</span>
+                  <select
+                    id="tempo-ladder-step"
+                    value={String(tempoLadderStepBpm)}
+                    disabled={tempoLadderEnabled && isSessionRunning}
+                    onChange={(event) =>
+                      setTempoLadderStepBpm(
+                        Number(event.target.value) as TempoLadderStepBpm,
+                      )
+                    }
+                  >
+                    {TEMPO_LADDER_STEPS.map((step) => (
+                      <option key={step} value={step}>
+                        +{step} BPM
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label
+                  className="select-field compact-select"
+                  htmlFor="tempo-ladder-interval"
+                >
+                  <span>Every</span>
+                  <select
+                    id="tempo-ladder-interval"
+                    value={String(tempoLadderIntervalSeconds)}
+                    disabled={tempoLadderEnabled && isSessionRunning}
+                    onChange={(event) =>
+                      setTempoLadderIntervalSeconds(
+                        Number(event.target.value) as TempoLadderIntervalSeconds,
+                      )
+                    }
+                  >
+                    {TEMPO_LADDER_INTERVALS.map((seconds) => (
+                      <option key={seconds} value={seconds}>
+                        {formatTempoLadderInterval(seconds)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
 
             <div className="control-block">
               <div className="control-label-row">
@@ -1781,6 +1930,26 @@ function formatSessionTime(seconds: number) {
   const remainingSeconds = seconds % 60;
 
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+function formatTempoLadderInterval(seconds: number) {
+  if (seconds < 60) {
+    return `${seconds} sec`;
+  }
+
+  const minutes = seconds / 60;
+  return `${minutes} min`;
+}
+
+function getTempoLadderBpm(
+  baseBpm: number,
+  stepBpm: TempoLadderStepBpm,
+  intervalSeconds: TempoLadderIntervalSeconds,
+  elapsedSeconds: number,
+) {
+  const stageIndex = Math.max(0, Math.floor(elapsedSeconds / intervalSeconds));
+
+  return Math.min(MAX_BPM, baseBpm + stageIndex * stepBpm);
 }
 
 function normalizeAlertWindow(min: number, max: number) {

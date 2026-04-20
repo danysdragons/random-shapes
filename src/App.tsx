@@ -82,6 +82,39 @@ type Shape =
       height: number;
     };
 
+function getCurrentTargetIndex(
+  exerciseMode: ExerciseMode,
+  movementStep: number,
+  shapeCount: number,
+  anchorReturnInterval: AnchorReturnInterval,
+) {
+  if (exerciseMode === "free" || shapeCount === 0) {
+    return null;
+  }
+
+  if (exerciseMode === "sequential" || shapeCount === 1) {
+    return movementStep % shapeCount;
+  }
+
+  if (movementStep === 0 || movementStep % anchorReturnInterval === 0) {
+    return 0;
+  }
+
+  return ((movementStep - 1) % (shapeCount - 1)) + 1;
+}
+
+function getExerciseLabel(exerciseMode: ExerciseMode) {
+  if (exerciseMode === "sequential") {
+    return "Sequential";
+  }
+
+  if (exerciseMode === "anchor-return") {
+    return "Anchor return";
+  }
+
+  return "Free";
+}
+
 export default function App() {
   const [shapeCount, setShapeCount] = useState(40);
   const [seed, setSeed] = useState(() => randomSeed());
@@ -1170,39 +1203,6 @@ function normalizeAlertWindow(min: number, max: number) {
   );
 
   return [lower, upper] as const;
-}
-
-function getCurrentTargetIndex(
-  exerciseMode: ExerciseMode,
-  movementStep: number,
-  shapeCount: number,
-  anchorReturnInterval: AnchorReturnInterval,
-) {
-  if (exerciseMode === "free" || shapeCount === 0) {
-    return null;
-  }
-
-  if (exerciseMode === "sequential" || shapeCount === 1) {
-    return movementStep % shapeCount;
-  }
-
-  if (movementStep === 0 || movementStep % anchorReturnInterval === 0) {
-    return 0;
-  }
-
-  return ((movementStep - 1) % (shapeCount - 1)) + 1;
-}
-
-function getExerciseLabel(exerciseMode: ExerciseMode) {
-  if (exerciseMode === "sequential") {
-    return "Sequential";
-  }
-
-  if (exerciseMode === "anchor-return") {
-    return "Anchor return";
-  }
-
-  return "Free";
 }
 
 function playMetronomeTick(

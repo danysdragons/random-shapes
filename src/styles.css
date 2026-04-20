@@ -396,6 +396,21 @@ select {
   padding: 0.8rem 0.9rem;
 }
 
+.color-field input[type="color"] {
+  width: 100%;
+  min-height: 50px;
+  padding: 0.3rem;
+  border: 1px solid rgba(36, 48, 65, 0.14);
+  border-radius: 14px;
+  background: rgba(249, 250, 245, 0.96);
+  cursor: pointer;
+}
+
+.color-field input[type="color"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 input[type="range"] {
   width: 100%;
   accent-color: #2f7f63;

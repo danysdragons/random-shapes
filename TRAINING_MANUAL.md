@@ -75,9 +75,52 @@ Use **Rotation** to control orientation variation:
 
 Rotation is useful for increasing visual diversity without changing the exercise rules.
 
-### Shape Borders And Labels
+### Fill Style
 
-Use **Add border to shapes** to draw dark outlines around shapes. Borders improve shape separation, especially with pastel or grayscale palettes.
+Use **Fill style** to change how the inside of each shape is rendered:
+
+- **Solid**: opaque colored shapes.
+- **Translucent**: colored shapes with adjustable opacity.
+- **Outline only**: no interior fill, emphasizing contours and center markers.
+
+Use **Fill opacity** to tune the translucency level when translucent fill is selected.
+
+### Borders
+
+Use **Border style** to control outlines:
+
+- **None**: no added outline unless outline-only fill is selected.
+- **Thin**: light outline.
+- **Medium**: default outline.
+- **Bold**: heavy outline for stronger separation.
+- **Dashed**: segmented outline for additional visual variety.
+
+Use **Border color** to set the outline color.
+
+### Corners
+
+Use **Corners** to change rectangle-like shape geometry:
+
+- **Sharp**: squared corners.
+- **Soft rounded**: moderate rounding.
+- **Round**: stronger rounding.
+
+Capsules remain rounded by design.
+
+### Center Markers
+
+Use **Center marker** to change the black dot at each shape center:
+
+- **Dot**: filled circular marker.
+- **Ring**: hollow circular marker.
+- **Crosshair**: crossing lines through the center.
+- **None**: hides center markers.
+
+Use **Marker color** and **Marker size** to customize marker appearance.
+
+### Labels
+
+Borders, outlines, and center markers improve shape separation, especially with pastel or grayscale palettes.
 
 Use **Show labels below shapes** in free practice mode to display labels. Labels can be random words or sequential numbers.
 

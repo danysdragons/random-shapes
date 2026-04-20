@@ -124,6 +124,10 @@ type LabelType = "word" | "number";
 type PaletteTheme = keyof typeof paletteThemes;
 type ShapeSizeMode = "small" | "medium" | "large" | "mixed";
 type RotationMode = "none" | "subtle" | "full";
+type BorderStyleMode = "none" | "thin" | "medium" | "bold" | "dashed";
+type CornerStyle = "sharp" | "soft" | "round";
+type FillStyle = "solid" | "translucent" | "outline";
+type CenterMarkerStyle = "dot" | "ring" | "crosshair" | "none";
 type ExerciseMode =
   | "free"
   | "sequential"
@@ -368,13 +372,22 @@ export default function App() {
   const [seed, setSeed] = useState(() => randomSeed());
   const [boardWidth, setBoardWidth] = useState(DEFAULT_BOARD_WIDTH);
   const [boardHeight, setBoardHeight] = useState(DEFAULT_BOARD_HEIGHT);
-  const [showBorder, setShowBorder] = useState(true);
   const [enabledShapeTypes, setEnabledShapeTypes] = useState<ShapeType[]>(
     () => shapeTypeOptions.map(({ type }) => type),
   );
   const [paletteTheme, setPaletteTheme] = useState<PaletteTheme>("bright");
   const [shapeSizeMode, setShapeSizeMode] = useState<ShapeSizeMode>("mixed");
   const [rotationMode, setRotationMode] = useState<RotationMode>("full");
+  const [borderStyleMode, setBorderStyleMode] =
+    useState<BorderStyleMode>("medium");
+  const [borderColor, setBorderColor] = useState("#243041");
+  const [cornerStyle, setCornerStyle] = useState<CornerStyle>("soft");
+  const [fillStyle, setFillStyle] = useState<FillStyle>("solid");
+  const [fillOpacity, setFillOpacity] = useState(0.72);
+  const [centerMarkerStyle, setCenterMarkerStyle] =
+    useState<CenterMarkerStyle>("dot");
+  const [centerMarkerSize, setCenterMarkerSize] = useState(8);
+  const [centerMarkerColor, setCenterMarkerColor] = useState("#111111");
   const [gridMode, setGridMode] = useState<GridMode>("none");
   const [gridOpacity, setGridOpacity] = useState(0.35);
   const [showLabels, setShowLabels] = useState(false);
@@ -1652,6 +1665,123 @@ export default function App() {
               </label>
             </div>
 
+            <div className="select-grid">
+              <label className="select-field" htmlFor="fill-style">
+                <span>Fill style</span>
+                <select
+                  id="fill-style"
+                  value={fillStyle}
+                  onChange={(event) => setFillStyle(event.target.value as FillStyle)}
+                >
+                  <option value="solid">Solid</option>
+                  <option value="translucent">Translucent</option>
+                  <option value="outline">Outline only</option>
+                </select>
+              </label>
+
+              <label className="select-field" htmlFor="border-style">
+                <span>Border style</span>
+                <select
+                  id="border-style"
+                  value={borderStyleMode}
+                  onChange={(event) =>
+                    setBorderStyleMode(event.target.value as BorderStyleMode)
+                  }
+                >
+                  <option value="none">None</option>
+                  <option value="thin">Thin</option>
+                  <option value="medium">Medium</option>
+                  <option value="bold">Bold</option>
+                  <option value="dashed">Dashed</option>
+                </select>
+              </label>
+
+              <label className="select-field" htmlFor="corner-style">
+                <span>Corners</span>
+                <select
+                  id="corner-style"
+                  value={cornerStyle}
+                  onChange={(event) =>
+                    setCornerStyle(event.target.value as CornerStyle)
+                  }
+                >
+                  <option value="sharp">Sharp</option>
+                  <option value="soft">Soft rounded</option>
+                  <option value="round">Round</option>
+                </select>
+              </label>
+
+              <label className="select-field" htmlFor="center-marker-style">
+                <span>Center marker</span>
+                <select
+                  id="center-marker-style"
+                  value={centerMarkerStyle}
+                  onChange={(event) =>
+                    setCenterMarkerStyle(
+                      event.target.value as CenterMarkerStyle,
+                    )
+                  }
+                >
+                  <option value="dot">Dot</option>
+                  <option value="ring">Ring</option>
+                  <option value="crosshair">Crosshair</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="select-grid">
+              <label className="select-field color-field" htmlFor="border-color">
+                <span>Border color</span>
+                <input
+                  id="border-color"
+                  type="color"
+                  value={borderColor}
+                  disabled={borderStyleMode === "none" && fillStyle !== "outline"}
+                  onChange={(event) => setBorderColor(event.target.value)}
+                />
+              </label>
+
+              <label className="select-field color-field" htmlFor="center-marker-color">
+                <span>Marker color</span>
+                <input
+                  id="center-marker-color"
+                  type="color"
+                  value={centerMarkerColor}
+                  disabled={centerMarkerStyle === "none"}
+                  onChange={(event) => setCenterMarkerColor(event.target.value)}
+                />
+              </label>
+            </div>
+
+            <RangeControl
+              label="Fill opacity"
+              output={fillStyle === "outline" ? "outline" : fillOpacity.toFixed(2)}
+              inputId="fill-opacity"
+              rangeId="fill-opacity-range"
+              value={fillOpacity}
+              min={0.15}
+              max={1}
+              step={0.05}
+              disabled={fillStyle === "outline"}
+              onChange={(value) => setFillOpacity(value)}
+            />
+
+            <RangeControl
+              label="Marker size"
+              output={
+                centerMarkerStyle === "none" ? "hidden" : `${centerMarkerSize}px`
+              }
+              inputId="marker-size"
+              rangeId="marker-size-range"
+              value={centerMarkerSize}
+              min={3}
+              max={18}
+              step={1}
+              disabled={centerMarkerStyle === "none"}
+              onChange={(value) => setCenterMarkerSize(Math.round(value))}
+            />
+
             <RangeControl
               label="Width"
               output={`${boardWidth}px`}
@@ -1677,15 +1807,6 @@ export default function App() {
             />
 
             <div className="toggle-row">
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={showBorder}
-                  onChange={(event) => setShowBorder(event.target.checked)}
-                />
-                <span>Add border to shapes</span>
-              </label>
-
               <label className="checkbox-field">
                 <input
                   type="checkbox"
@@ -1828,7 +1949,14 @@ export default function App() {
                   <ShapeMark
                     key={shape.id}
                     shape={shape}
-                    showBorder={showBorder}
+                    borderStyleMode={borderStyleMode}
+                    borderColor={borderColor}
+                    cornerStyle={cornerStyle}
+                    fillStyle={fillStyle}
+                    fillOpacity={fillOpacity}
+                    centerMarkerStyle={centerMarkerStyle}
+                    centerMarkerSize={centerMarkerSize}
+                    centerMarkerColor={centerMarkerColor}
                     highlighted={currentTargetIndex === index}
                     anchored={anchorIndex === index}
                     selectable={
@@ -2114,22 +2242,41 @@ function HexGrid({
 
 function ShapeMark({
   shape,
-  showBorder,
+  borderStyleMode,
+  borderColor,
+  cornerStyle,
+  fillStyle,
+  fillOpacity,
+  centerMarkerStyle,
+  centerMarkerSize,
+  centerMarkerColor,
   highlighted,
   anchored,
   selectable,
   onSelect,
 }: {
   shape: Shape;
-  showBorder: boolean;
+  borderStyleMode: BorderStyleMode;
+  borderColor: string;
+  cornerStyle: CornerStyle;
+  fillStyle: FillStyle;
+  fillOpacity: number;
+  centerMarkerStyle: CenterMarkerStyle;
+  centerMarkerSize: number;
+  centerMarkerColor: string;
   highlighted: boolean;
   anchored: boolean;
   selectable: boolean;
   onSelect: () => void;
 }) {
-  const borderProps = showBorder
-    ? { stroke: "#243041", strokeWidth: 4, strokeLinejoin: "round" as const }
-    : undefined;
+  const borderProps = getShapeBorderProps(
+    borderStyleMode,
+    borderColor,
+    fillStyle,
+    shape.color,
+  );
+  const fillProps = getShapeFillProps(shape.color, fillStyle, fillOpacity);
+  const cornerRadius = getCornerRadius(shape, cornerStyle);
 
   return (
     <g
@@ -2155,16 +2302,16 @@ function ShapeMark({
         <ShapeHalo shape={shape} variant="anchor" />
       ) : null}
       {shape.type === "circle" ? (
-        <circle r={shape.radius} fill={shape.color} {...borderProps} />
+        <circle r={shape.radius} {...fillProps} {...borderProps} />
       ) : null}
       {shape.type === "ring" ? (
         <>
-          <circle r={shape.radius} fill={shape.color} {...borderProps} />
+          <circle r={shape.radius} {...fillProps} {...borderProps} />
           <circle
             r={shape.radius * 0.54}
             fill="#fffdf8"
-            stroke={showBorder ? "#243041" : shape.color}
-            strokeWidth={showBorder ? 3 : 0}
+            stroke={borderStyleMode === "none" ? shape.color : borderColor}
+            strokeWidth={borderStyleMode === "none" ? 0 : 3}
           />
         </>
       ) : null}
@@ -2174,8 +2321,8 @@ function ShapeMark({
           y={-shape.height / 2}
           width={shape.width}
           height={shape.height}
-          rx="12"
-          fill={shape.color}
+          rx={cornerRadius}
+          {...fillProps}
           {...borderProps}
         />
       ) : null}
@@ -2185,47 +2332,51 @@ function ShapeMark({
           y={-shape.height / 2}
           width={shape.width}
           height={shape.height}
-          rx={shape.height / 2}
-          fill={shape.color}
+          rx={cornerRadius}
+          {...fillProps}
           {...borderProps}
         />
       ) : null}
       {shape.type === "triangle" ? (
         <polygon
           points={trianglePoints(shape.width, shape.height)}
-          fill={shape.color}
+          {...fillProps}
           {...borderProps}
         />
       ) : null}
       {shape.type === "diamond" ? (
         <polygon
           points={polygonPoints(4, shape.width / 2)}
-          fill={shape.color}
+          {...fillProps}
           {...borderProps}
         />
       ) : null}
       {shape.type === "star" ? (
         <polygon
           points={starPoints(shape.width / 2)}
-          fill={shape.color}
+          {...fillProps}
           {...borderProps}
         />
       ) : null}
       {shape.type === "pentagon" ? (
         <polygon
           points={polygonPoints(5, shape.width / 2)}
-          fill={shape.color}
+          {...fillProps}
           {...borderProps}
         />
       ) : null}
       {shape.type === "hexagon" ? (
         <polygon
           points={polygonPoints(6, shape.width / 2)}
-          fill={shape.color}
+          {...fillProps}
           {...borderProps}
         />
       ) : null}
-      <circle r="8" fill="#111111" />
+      <CenterMarker
+        styleMode={centerMarkerStyle}
+        size={centerMarkerSize}
+        color={centerMarkerColor}
+      />
     </g>
   );
 }
@@ -2298,6 +2449,108 @@ function getPolygonHaloPoints(shape: Exclude<Shape, { type: "circle" | "ring" }>
   }
 
   return polygonPoints(shape.type === "pentagon" ? 5 : 6, shape.width / 2 + 16);
+}
+
+function CenterMarker({
+  styleMode,
+  size,
+  color,
+}: {
+  styleMode: CenterMarkerStyle;
+  size: number;
+  color: string;
+}) {
+  if (styleMode === "none") {
+    return null;
+  }
+
+  if (styleMode === "ring") {
+    return (
+      <circle
+        r={size}
+        fill="none"
+        stroke={color}
+        strokeWidth={Math.max(2, size * 0.28)}
+      />
+    );
+  }
+
+  if (styleMode === "crosshair") {
+    const arm = size * 1.3;
+    const strokeWidth = Math.max(2, size * 0.25);
+
+    return (
+      <g stroke={color} strokeLinecap="round" strokeWidth={strokeWidth}>
+        <line x1={-arm} y1={0} x2={arm} y2={0} />
+        <line x1={0} y1={-arm} x2={0} y2={arm} />
+        <circle r={Math.max(1.5, size * 0.28)} fill={color} stroke="none" />
+      </g>
+    );
+  }
+
+  return <circle r={size} fill={color} />;
+}
+
+function getShapeBorderProps(
+  borderStyleMode: BorderStyleMode,
+  borderColor: string,
+  fillStyle: FillStyle,
+  shapeColor: string,
+) {
+  if (borderStyleMode === "none" && fillStyle !== "outline") {
+    return undefined;
+  }
+
+  const strokeWidth =
+    borderStyleMode === "thin"
+      ? 2
+      : borderStyleMode === "bold"
+        ? 7
+        : borderStyleMode === "dashed"
+          ? 4
+          : 4;
+
+  return {
+    stroke: borderStyleMode === "none" ? shapeColor : borderColor,
+    strokeDasharray: borderStyleMode === "dashed" ? "14 10" : undefined,
+    strokeLinejoin: "round" as const,
+    strokeWidth,
+  };
+}
+
+function getShapeFillProps(
+  color: string,
+  fillStyle: FillStyle,
+  fillOpacity: number,
+) {
+  if (fillStyle === "outline") {
+    return { fill: "none" };
+  }
+
+  return {
+    fill: color,
+    fillOpacity: fillStyle === "translucent" ? fillOpacity : 1,
+  };
+}
+
+function getCornerRadius(shape: Shape, cornerStyle: CornerStyle) {
+  if (!("width" in shape)) {
+    return 0;
+  }
+
+  if (shape.type === "capsule") {
+    return shape.height / 2;
+  }
+
+  if (cornerStyle === "sharp") {
+    return 0;
+  }
+
+  if (cornerStyle === "round") {
+    return Math.min(shape.width, shape.height) * 0.32;
+  }
+
+  return Math.min(14, Math.min(shape.width, shape.height) * 0.18);
 }
 
 function ShapeLabel({

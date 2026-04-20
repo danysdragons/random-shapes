@@ -100,6 +100,32 @@ select {
   gap: 18px;
 }
 
+.control-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  padding: 18px 4px 0;
+  border-top: 1px solid rgba(36, 48, 65, 0.1);
+}
+
+.control-section-heading:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.control-section-heading h2 {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+
+.control-section-heading span {
+  color: #617086;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
 .metronome-strip {
   display: flex;
   justify-content: space-between;
@@ -120,6 +146,18 @@ select {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.5);
   border: 1px solid rgba(36, 48, 65, 0.08);
+}
+
+.session-strip {
+  background: linear-gradient(135deg, rgba(255, 248, 226, 0.72), rgba(255, 255, 255, 0.62));
+}
+
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: end;
+  gap: 12px;
 }
 
 .metronome-copy {
@@ -213,6 +251,10 @@ input[type="range"] {
   gap: 8px;
   min-width: min(100%, 280px);
   font-weight: 600;
+}
+
+.compact-select {
+  min-width: 150px;
 }
 
 .status-stack {
@@ -439,6 +481,15 @@ select:disabled {
   .metrics-strip {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .control-section-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .session-actions {
+    justify-content: stretch;
   }
 
   .paired-inputs {

@@ -13,6 +13,7 @@ const MAX_ALERT_SECONDS = 60;
 const MIN_BPM = 30;
 const MAX_BPM = 180;
 const LABEL_FONT_SIZE = 24;
+const SESSION_DURATIONS = [1, 3, 5, 10] as const;
 
 const palette = [
   "#ff6b6b",
@@ -68,6 +69,7 @@ type AnchorReturnInterval = 4 | 6 | 8;
 type AlternatingPattern = "triangle-circle" | "warm-cool";
 type MemoryPhase = "idle" | "preview" | "recall" | "complete";
 type MemorySequenceLength = 4 | 6 | 8 | 10;
+type SessionDurationMinutes = (typeof SESSION_DURATIONS)[number];
 type ResponseFeedback = {
   kind: "correct" | "incorrect";
   message: string;
@@ -104,7 +106,11 @@ function getCurrentTargetIndex(
 ) {
   const shapeCount = shapes.length;
 
-  if (exerciseMode === "free" || shapeCount === 0) {
+  if (
+    exerciseMode === "free" ||
+    exerciseMode === "memory-replay" ||
+    shapeCount === 0
+  ) {
     return null;
   }
 
@@ -246,6 +252,11 @@ export default function App() {
   });
   const [responseFeedback, setResponseFeedback] =
     useState<ResponseFeedback>(null);
+  const [sessionDurationMinutes, setSessionDurationMinutes] =
+    useState<SessionDurationMinutes>(3);
+  const [sessionRemainingSeconds, setSessionRemainingSeconds] = useState(3 * 60);
+  const [isSessionRunning, setIsSessionRunning] = useState(false);
+  const [sessionCompleted, setSessionCompleted] = useState(false);
   const [isMetronomeRunning, setIsMetronomeRunning] = useState(false);
   const [beatCount, setBeatCount] = useState(0);
   const [pulseToken, setPulseToken] = useState(0);
@@ -254,6 +265,7 @@ export default function App() {
   const hideTimeoutRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
   const memoryPreviewTimeoutRef = useRef<number | null>(null);
+  const sessionIntervalRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -439,6 +451,42 @@ export default function App() {
   }, [memoryPhase, memoryPreviewIndex, memorySequenceLength]);
 
   useEffect(() => {
+    setSessionRemainingSeconds(sessionDurationMinutes * 60);
+    setSessionCompleted(false);
+  }, [sessionDurationMinutes]);
+
+  useEffect(() => {
+    if (sessionIntervalRef.current !== null) {
+      window.clearInterval(sessionIntervalRef.current);
+      sessionIntervalRef.current = null;
+    }
+
+    if (!isSessionRunning) {
+      return;
+    }
+
+    sessionIntervalRef.current = window.setInterval(() => {
+      setSessionRemainingSeconds((seconds) => {
+        if (seconds <= 1) {
+          setIsSessionRunning(false);
+          setSessionCompleted(true);
+          setIsMetronomeRunning(false);
+          return 0;
+        }
+
+        return seconds - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (sessionIntervalRef.current !== null) {
+        window.clearInterval(sessionIntervalRef.current);
+        sessionIntervalRef.current = null;
+      }
+    };
+  }, [isSessionRunning]);
+
+  useEffect(() => {
     return () => {
       if (intervalRef.current !== null) {
         window.clearInterval(intervalRef.current);
@@ -446,6 +494,10 @@ export default function App() {
 
       if (memoryPreviewTimeoutRef.current !== null) {
         window.clearTimeout(memoryPreviewTimeoutRef.current);
+      }
+
+      if (sessionIntervalRef.current !== null) {
+        window.clearInterval(sessionIntervalRef.current);
       }
 
       if (audioContextRef.current !== null) {
@@ -503,6 +555,11 @@ export default function App() {
     responseStats.attempts === 0
       ? 0
       : Math.round((responseStats.correct / responseStats.attempts) * 100);
+  const sessionStatus = sessionCompleted
+    ? "Session complete"
+    : isSessionRunning
+      ? "Session running"
+      : "Session ready";
 
   function regenerateBoard() {
     setSeed(randomSeed());
@@ -584,6 +641,25 @@ export default function App() {
     setMemoryPhase("preview");
   }
 
+  function startSession() {
+    if (sessionRemainingSeconds === 0 || sessionCompleted) {
+      setSessionRemainingSeconds(sessionDurationMinutes * 60);
+    }
+
+    setSessionCompleted(false);
+    setIsSessionRunning(true);
+  }
+
+  function pauseSession() {
+    setIsSessionRunning(false);
+  }
+
+  function resetSession() {
+    setIsSessionRunning(false);
+    setSessionCompleted(false);
+    setSessionRemainingSeconds(sessionDurationMinutes * 60);
+  }
+
   function handleShapeSelect(index: number) {
     if (
       !responseTrackingEnabled ||
@@ -625,12 +701,13 @@ export default function App() {
       <section className="app-card">
         <header className="hero">
           <div>
-            <p className="eyebrow">Pass 3: Metronome Foundation</p>
+            <p className="eyebrow">Pass 4: Timed Practice Blocks</p>
             <h1>Random Shape Whiteboard</h1>
             <p className="hero-copy">
-              The board can now run as a paced visual attention surface. Use the
-              optional metronome to scaffold sequential stepping one target at a
-              time, without turning the experience into a rhythm game.
+              The board can now run as a paced visual attention surface. Use
+              optional beat cues, response tracking, and timed sessions to
+              structure short attention drills without turning the experience
+              into a rhythm game.
             </p>
           </div>
           <button className="board-button" onClick={regenerateBoard}>
@@ -640,6 +717,14 @@ export default function App() {
 
         <section className="controls" aria-label="Board controls">
           <div className="controls-grid">
+            <div className="control-section-heading">
+              <div>
+                <p className="metronome-kicker">Pacing & exercise</p>
+                <h2>Beat-guided attention drills</h2>
+              </div>
+              <span>Optional scaffolding</span>
+            </div>
+
             <div className="metronome-strip">
               <div className="metronome-copy">
                 <p className="metronome-kicker">Pacing scaffold</p>
@@ -894,6 +979,67 @@ export default function App() {
               </div>
             ) : null}
 
+            <div className="control-section-heading">
+              <div>
+                <p className="metronome-kicker">Response & session</p>
+                <h2>Practice block controls</h2>
+              </div>
+              <span>{sessionStatus}</span>
+            </div>
+
+            <div className="metrics-strip session-strip" aria-live="polite">
+              <div>
+                <p className="metronome-kicker">Session timer</p>
+                <strong>{formatSessionTime(sessionRemainingSeconds)}</strong>
+                <span>
+                  {sessionCompleted
+                    ? "Timer complete. The metronome stopped automatically."
+                    : isSessionRunning
+                      ? `Running a ${sessionDurationMinutes}-minute practice block.`
+                      : "Start a timed practice block when you want bounded reps."}
+                </span>
+              </div>
+              <div className="session-actions">
+                <label className="select-field compact-select" htmlFor="session-duration">
+                  <span>Duration</span>
+                  <select
+                    id="session-duration"
+                    value={String(sessionDurationMinutes)}
+                    disabled={isSessionRunning}
+                    onChange={(event) =>
+                      setSessionDurationMinutes(
+                        Number(event.target.value) as SessionDurationMinutes,
+                      )
+                    }
+                  >
+                    {SESSION_DURATIONS.map((duration) => (
+                      <option key={duration} value={duration}>
+                        {duration} min
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={isSessionRunning ? pauseSession : startSession}
+                >
+                  {isSessionRunning ? "Pause timer" : "Start timer"}
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={
+                    sessionRemainingSeconds === sessionDurationMinutes * 60 &&
+                    !sessionCompleted
+                  }
+                  onClick={resetSession}
+                >
+                  Reset timer
+                </button>
+              </div>
+            </div>
+
             <div className="metrics-strip" aria-live="polite">
               <div>
                 <p className="metronome-kicker">Response tracking</p>
@@ -920,6 +1066,14 @@ export default function App() {
               >
                 Reset metrics
               </button>
+            </div>
+
+            <div className="control-section-heading">
+              <div>
+                <p className="metronome-kicker">Board & appearance</p>
+                <h2>Whiteboard setup</h2>
+              </div>
+              <span>{shapeCount} shapes</span>
             </div>
 
             <div className="control-block">
@@ -1620,6 +1774,13 @@ function getLabelOffset(shape: Shape) {
   }
 
   return Math.max(shape.width, shape.height) / 2 + 28;
+}
+
+function formatSessionTime(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
 function normalizeAlertWindow(min: number, max: number) {

@@ -74,6 +74,21 @@ type MemorySequenceLength = 4 | 6 | 8 | 10;
 type SessionDurationMinutes = (typeof SESSION_DURATIONS)[number];
 type TempoLadderStepBpm = (typeof TEMPO_LADDER_STEPS)[number];
 type TempoLadderIntervalSeconds = (typeof TEMPO_LADDER_INTERVALS)[number];
+type PracticePreset = {
+  id: string;
+  name: string;
+  description: string;
+  exerciseMode: ExerciseMode;
+  bpm: number;
+  beatsPerTarget: BeatsPerTarget;
+  sessionDurationMinutes: SessionDurationMinutes;
+  tempoLadderEnabled: boolean;
+  tempoLadderStepBpm: TempoLadderStepBpm;
+  tempoLadderIntervalSeconds: TempoLadderIntervalSeconds;
+  anchorReturnInterval?: AnchorReturnInterval;
+  alternatingPattern?: AlternatingPattern;
+  memorySequenceLength?: MemorySequenceLength;
+};
 type ResponseFeedback = {
   kind: "correct" | "incorrect";
   message: string;
@@ -100,6 +115,60 @@ type Shape =
       width: number;
       height: number;
     };
+
+const practicePresets = [
+  {
+    id: "steady-sequence",
+    name: "Steady sequence",
+    description: "Slow one-target-per-beat stepping for calibration.",
+    exerciseMode: "sequential",
+    bpm: 54,
+    beatsPerTarget: 1,
+    sessionDurationMinutes: 3,
+    tempoLadderEnabled: false,
+    tempoLadderStepBpm: 4,
+    tempoLadderIntervalSeconds: 60,
+  },
+  {
+    id: "anchor-return",
+    name: "Anchor return",
+    description: "Return to target 1 every fourth shift to train re-centering.",
+    exerciseMode: "anchor-return",
+    bpm: 60,
+    beatsPerTarget: 2,
+    sessionDurationMinutes: 3,
+    tempoLadderEnabled: false,
+    tempoLadderStepBpm: 4,
+    tempoLadderIntervalSeconds: 60,
+    anchorReturnInterval: 4,
+  },
+  {
+    id: "feature-switch",
+    name: "Feature switch",
+    description: "Alternate by feature class with a gentle tempo ladder.",
+    exerciseMode: "alternating-feature",
+    bpm: 56,
+    beatsPerTarget: 2,
+    sessionDurationMinutes: 5,
+    tempoLadderEnabled: true,
+    tempoLadderStepBpm: 4,
+    tempoLadderIntervalSeconds: 60,
+    alternatingPattern: "triangle-circle",
+  },
+  {
+    id: "memory-replay",
+    name: "Memory replay",
+    description: "Preview six targets, then click them back in order.",
+    exerciseMode: "memory-replay",
+    bpm: 60,
+    beatsPerTarget: 1,
+    sessionDurationMinutes: 3,
+    tempoLadderEnabled: false,
+    tempoLadderStepBpm: 4,
+    tempoLadderIntervalSeconds: 60,
+    memorySequenceLength: 6,
+  },
+] satisfies PracticePreset[];
 
 function getCurrentTargetIndex(
   exerciseMode: ExerciseMode,
@@ -731,6 +800,29 @@ export default function App() {
     setSessionRemainingSeconds(sessionDurationMinutes * 60);
   }
 
+  function applyPracticePreset(preset: PracticePreset) {
+    setExerciseMode(preset.exerciseMode);
+    setBpm(preset.bpm);
+    setBeatsPerTarget(preset.beatsPerTarget);
+    setSessionDurationMinutes(preset.sessionDurationMinutes);
+    setSessionRemainingSeconds(preset.sessionDurationMinutes * 60);
+    setTempoLadderEnabled(preset.tempoLadderEnabled);
+    setTempoLadderBaseBpm(preset.bpm);
+    setTempoLadderStepBpm(preset.tempoLadderStepBpm);
+    setTempoLadderIntervalSeconds(preset.tempoLadderIntervalSeconds);
+    setAnchorReturnInterval(preset.anchorReturnInterval ?? 4);
+    setAlternatingPattern(preset.alternatingPattern ?? "triangle-circle");
+    setMemorySequenceLength(preset.memorySequenceLength ?? 6);
+    setResponseTrackingEnabled(preset.exerciseMode !== "free");
+    setIsMetronomeRunning(false);
+    setIsSessionRunning(false);
+    setSessionCompleted(false);
+    setBeatCount(0);
+    setPulseToken(0);
+    resetResponseStats();
+    resetMemoryReplay();
+  }
+
   function handleShapeSelect(index: number) {
     if (
       !responseTrackingEnabled ||
@@ -794,6 +886,21 @@ export default function App() {
                 <h2>Beat-guided attention drills</h2>
               </div>
               <span>Optional scaffolding</span>
+            </div>
+
+            <div className="preset-grid" aria-label="Practice presets">
+              {practicePresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  className="preset-card"
+                  type="button"
+                  onClick={() => applyPracticePreset(preset)}
+                >
+                  <span>{preset.name}</span>
+                  <strong>{preset.bpm} BPM</strong>
+                  <small>{preset.description}</small>
+                </button>
+              ))}
             </div>
 
             <div className="metronome-strip">

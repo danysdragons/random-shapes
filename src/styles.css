@@ -203,6 +203,40 @@ select {
   background: linear-gradient(135deg, rgba(232, 242, 255, 0.72), rgba(255, 255, 255, 0.62));
 }
 
+.session-log-strip {
+  align-items: stretch;
+  background: linear-gradient(135deg, rgba(237, 247, 234, 0.72), rgba(255, 255, 255, 0.62));
+}
+
+.session-record-list {
+  display: grid;
+  min-width: min(100%, 420px);
+  max-height: 250px;
+  margin: 0;
+  padding: 0;
+  gap: 8px;
+  list-style: none;
+  overflow: auto;
+}
+
+.session-record {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(36, 48, 65, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.session-record strong {
+  color: #18212f;
+}
+
+.session-record span {
+  color: #526172;
+  font-size: 0.88rem;
+}
+
 .session-actions {
   display: flex;
   flex-wrap: wrap;
@@ -550,6 +584,10 @@ select:disabled {
 
   .session-actions {
     justify-content: stretch;
+  }
+
+  .session-record-list {
+    min-width: 0;
   }
 
   .paired-inputs {

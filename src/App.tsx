@@ -89,6 +89,16 @@ type PracticePreset = {
   alternatingPattern?: AlternatingPattern;
   memorySequenceLength?: MemorySequenceLength;
 };
+type SessionRecord = {
+  id: string;
+  kind: "completed" | "saved";
+  exerciseLabel: string;
+  durationSeconds: number;
+  bpmLabel: string;
+  attempts: number;
+  correct: number;
+  accuracy: number;
+};
 type ResponseFeedback = {
   kind: "correct" | "incorrect";
   message: string;
@@ -330,6 +340,7 @@ export default function App() {
   const [sessionRemainingSeconds, setSessionRemainingSeconds] = useState(3 * 60);
   const [isSessionRunning, setIsSessionRunning] = useState(false);
   const [sessionCompleted, setSessionCompleted] = useState(false);
+  const [sessionRecords, setSessionRecords] = useState<SessionRecord[]>([]);
   const [tempoLadderEnabled, setTempoLadderEnabled] = useState(false);
   const [tempoLadderBaseBpm, setTempoLadderBaseBpm] = useState(60);
   const [tempoLadderStepBpm, setTempoLadderStepBpm] =
@@ -345,6 +356,7 @@ export default function App() {
   const intervalRef = useRef<number | null>(null);
   const memoryPreviewTimeoutRef = useRef<number | null>(null);
   const sessionIntervalRef = useRef<number | null>(null);
+  const sessionCompletionLoggedRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -532,6 +544,7 @@ export default function App() {
   useEffect(() => {
     setSessionRemainingSeconds(sessionDurationMinutes * 60);
     setSessionCompleted(false);
+    sessionCompletionLoggedRef.current = false;
   }, [sessionDurationMinutes]);
 
   useEffect(() => {
@@ -588,6 +601,18 @@ export default function App() {
       }
     };
   }, [isSessionRunning]);
+
+  useEffect(() => {
+    if (!sessionCompleted || sessionCompletionLoggedRef.current) {
+      return;
+    }
+
+    setSessionRecords((records) => [
+      createSessionRecord("completed"),
+      ...records,
+    ].slice(0, 5));
+    sessionCompletionLoggedRef.current = true;
+  }, [sessionCompleted]);
 
   useEffect(() => {
     return () => {
@@ -786,6 +811,7 @@ export default function App() {
       setTempoLadderBaseBpm(bpm);
     }
 
+    sessionCompletionLoggedRef.current = false;
     setSessionCompleted(false);
     setIsSessionRunning(true);
   }
@@ -798,6 +824,7 @@ export default function App() {
     setIsSessionRunning(false);
     setSessionCompleted(false);
     setSessionRemainingSeconds(sessionDurationMinutes * 60);
+    sessionCompletionLoggedRef.current = false;
   }
 
   function applyPracticePreset(preset: PracticePreset) {
@@ -817,10 +844,33 @@ export default function App() {
     setIsMetronomeRunning(false);
     setIsSessionRunning(false);
     setSessionCompleted(false);
+    sessionCompletionLoggedRef.current = false;
     setBeatCount(0);
     setPulseToken(0);
     resetResponseStats();
     resetMemoryReplay();
+  }
+
+  function saveSessionSnapshot() {
+    setSessionRecords((records) => [
+      createSessionRecord("saved"),
+      ...records,
+    ].slice(0, 5));
+  }
+
+  function createSessionRecord(kind: SessionRecord["kind"]): SessionRecord {
+    return {
+      id: `${Date.now()}-${kind}`,
+      kind,
+      exerciseLabel: getExerciseLabel(exerciseMode),
+      durationSeconds: Math.max(0, sessionElapsedSeconds),
+      bpmLabel: tempoLadderEnabled
+        ? `${tempoLadderBaseBpm}-${Math.max(bpm, tempoLadderBaseBpm)} BPM`
+        : `${bpm} BPM`,
+      attempts: responseStats.attempts,
+      correct: responseStats.correct,
+      accuracy: responseAccuracy,
+    };
   }
 
   function handleShapeSelect(index: number) {
@@ -1293,6 +1343,14 @@ export default function App() {
                 >
                   Reset timer
                 </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={sessionElapsedSeconds === 0 && responseStats.attempts === 0}
+                  onClick={saveSessionSnapshot}
+                >
+                  Save snapshot
+                </button>
               </div>
             </div>
 
@@ -1321,6 +1379,50 @@ export default function App() {
                 onClick={resetResponseStats}
               >
                 Reset metrics
+              </button>
+            </div>
+
+            <div className="metrics-strip session-log-strip" aria-live="polite">
+              <div>
+                <p className="metronome-kicker">Session log</p>
+                <strong>
+                  {sessionRecords.length > 0
+                    ? `${sessionRecords.length} recent block${sessionRecords.length === 1 ? "" : "s"}`
+                    : "No sessions recorded yet"}
+                </strong>
+                <span>
+                  Completed timed sessions are saved automatically. Use snapshots
+                  for partial blocks or untimed reps.
+                </span>
+              </div>
+
+              {sessionRecords.length > 0 ? (
+                <ol className="session-record-list">
+                  {sessionRecords.map((record) => (
+                    <li key={record.id} className="session-record">
+                      <strong>{record.exerciseLabel}</strong>
+                      <span>
+                        {record.kind === "completed" ? "Completed" : "Saved"} •{" "}
+                        {formatSessionTime(record.durationSeconds)} • {record.bpmLabel}
+                      </span>
+                      <span>
+                        {record.correct}/{record.attempts} correct •{" "}
+                        {record.attempts > 0
+                          ? `${record.accuracy}% accuracy`
+                          : "no clicks tracked"}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={sessionRecords.length === 0}
+                onClick={() => setSessionRecords([])}
+              >
+                Clear log
               </button>
             </div>
 

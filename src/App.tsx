@@ -10,6 +10,8 @@ const MIN_SHAPES = 5;
 const MAX_SHAPES = 250;
 const MIN_ALERT_SECONDS = 0.2;
 const MAX_ALERT_SECONDS = 60;
+const MIN_BPM = 30;
+const MAX_BPM = 180;
 const LABEL_FONT_SIZE = 24;
 
 const palette = [
@@ -55,6 +57,8 @@ const wordBank = [
 type ShapeType = "circle" | "rectangle" | "triangle" | "pentagon" | "hexagon";
 type GridMode = "none" | "square" | "hex";
 type LabelType = "word" | "number";
+type ExerciseMode = "free" | "sequential";
+type BeatsPerTarget = 1 | 2 | 4;
 
 type Shape =
   | {
@@ -91,8 +95,21 @@ export default function App() {
   const [maxAlertSec, setMaxAlertSec] = useState(10);
   const [showAlert, setShowAlert] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
+  const [exerciseMode, setExerciseMode] = useState<ExerciseMode>("free");
+  const [bpm, setBpm] = useState(60);
+  const [beatsPerBar, setBeatsPerBar] = useState(4);
+  const [accentFirstBeat, setAccentFirstBeat] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [visualPulseEnabled, setVisualPulseEnabled] = useState(true);
+  const [beatsPerTarget, setBeatsPerTarget] = useState<BeatsPerTarget>(1);
+  const [isMetronomeRunning, setIsMetronomeRunning] = useState(false);
+  const [beatCount, setBeatCount] = useState(0);
+  const [pulseToken, setPulseToken] = useState(0);
+  const [lastPulseAccent, setLastPulseAccent] = useState(false);
   const alertTimeoutRef = useRef<number | null>(null);
   const hideTimeoutRef = useRef<number | null>(null);
+  const intervalRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     const viewportWidth = Math.max(
@@ -134,7 +151,7 @@ export default function App() {
       }
 
       event.preventDefault();
-      setSeed(randomSeed());
+      regenerateBoard();
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -187,36 +204,306 @@ export default function App() {
     return clearTimers;
   }, [minAlertSec, maxAlertSec]);
 
+  useEffect(() => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    if (!isMetronomeRunning) {
+      return;
+    }
+
+    const intervalMs = 60_000 / bpm;
+    intervalRef.current = window.setInterval(() => {
+      setBeatCount((count) => count + 1);
+    }, intervalMs);
+
+    return () => {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [isMetronomeRunning, bpm]);
+
+  useEffect(() => {
+    if (!isMetronomeRunning || beatCount === 0) {
+      return;
+    }
+
+    const accent = accentFirstBeat && ((beatCount - 1) % beatsPerBar === 0);
+
+    if (audioEnabled) {
+      playMetronomeTick(audioContextRef.current, accent);
+    }
+
+    if (visualPulseEnabled) {
+      setLastPulseAccent(accent);
+      setPulseToken((token) => token + 1);
+    }
+  }, [
+    accentFirstBeat,
+    audioEnabled,
+    beatCount,
+    beatsPerBar,
+    isMetronomeRunning,
+    visualPulseEnabled,
+  ]);
+
+  useEffect(() => {
+    setBeatCount(0);
+  }, [exerciseMode, beatsPerTarget, seed]);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+      }
+
+      if (audioContextRef.current !== null) {
+        void audioContextRef.current.close();
+      }
+    };
+  }, []);
+
+  const effectiveLabelType =
+    exerciseMode === "sequential" ? "number" : labelType;
+  const effectiveShowLabels = showLabels || exerciseMode === "sequential";
+
   const shapes = useMemo(
     () => generateShapes(shapeCount, seed, boardWidth, boardHeight),
     [shapeCount, seed, boardWidth, boardHeight],
   );
 
   const labels = useMemo(
-    () => generateLabels(shapeCount, seed, labelType),
-    [shapeCount, seed, labelType],
+    () => generateLabels(shapeCount, seed, effectiveLabelType),
+    [effectiveLabelType, seed, shapeCount],
   );
+
+  const currentTargetIndex =
+    exerciseMode === "sequential" && shapes.length > 0
+      ? Math.floor(beatCount / beatsPerTarget) % shapes.length
+      : null;
+  const currentBeatInBar =
+    beatCount === 0 ? 1 : ((beatCount - 1) % beatsPerBar) + 1;
+  const beatsUntilShift =
+    exerciseMode === "sequential"
+      ? beatsPerTarget - (beatCount % beatsPerTarget || beatsPerTarget)
+      : null;
+
+  function regenerateBoard() {
+    setSeed(randomSeed());
+    setBeatCount(0);
+    setPulseToken(0);
+  }
+
+  function ensureAudioContext() {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const AudioCtor =
+      window.AudioContext ||
+      (
+        window as typeof window & {
+          webkitAudioContext?: typeof AudioContext;
+        }
+      ).webkitAudioContext;
+
+    if (!AudioCtor) {
+      return null;
+    }
+
+    if (audioContextRef.current === null) {
+      audioContextRef.current = new AudioCtor();
+    }
+
+    if (audioContextRef.current.state === "suspended") {
+      void audioContextRef.current.resume();
+    }
+
+    return audioContextRef.current;
+  }
+
+  function toggleMetronome() {
+    if (isMetronomeRunning) {
+      setIsMetronomeRunning(false);
+      return;
+    }
+
+    ensureAudioContext();
+    setBeatCount(0);
+    setPulseToken(0);
+    setIsMetronomeRunning(true);
+  }
+
+  function handleAudioToggle(nextValue: boolean) {
+    setAudioEnabled(nextValue);
+
+    if (nextValue) {
+      ensureAudioContext();
+    }
+  }
 
   return (
     <main className="app-shell">
       <section className="app-card">
         <header className="hero">
           <div>
-            <p className="eyebrow">Pass 2: Alerts, Labels, Shortcuts</p>
+            <p className="eyebrow">Pass 3: Metronome Foundation</p>
             <h1>Random Shape Whiteboard</h1>
             <p className="hero-copy">
-              The board now supports randomized alert timing, optional labels
-              beneath each shape, and keyboard shortcuts for generating a fresh
-              layout without reaching for the mouse.
+              The board can now run as a paced visual attention surface. Use the
+              optional metronome to scaffold sequential stepping one target at a
+              time, without turning the experience into a rhythm game.
             </p>
           </div>
-          <button className="board-button" onClick={() => setSeed(randomSeed())}>
+          <button className="board-button" onClick={regenerateBoard}>
             New board (N or Ctrl/Cmd+Enter)
           </button>
         </header>
 
         <section className="controls" aria-label="Board controls">
           <div className="controls-grid">
+            <div className="metronome-strip">
+              <div className="metronome-copy">
+                <p className="metronome-kicker">Pacing scaffold</p>
+                <strong>
+                  {isMetronomeRunning ? "Metronome running" : "Metronome stopped"}
+                </strong>
+                <span>
+                  {exerciseMode === "free"
+                    ? "Free practice mode with optional beat support."
+                    : `Sequential stepping: target ${currentTargetIndex !== null ? currentTargetIndex + 1 : 1} of ${shapeCount}.`}
+                </span>
+              </div>
+              <button className="board-button metronome-button" onClick={toggleMetronome}>
+                {isMetronomeRunning ? "Stop metronome" : "Start metronome"}
+              </button>
+            </div>
+
+            <div className="control-block">
+              <div className="control-label-row">
+                <label htmlFor="exercise-mode">Exercise mode</label>
+                <output htmlFor="exercise-mode">
+                  {exerciseMode === "free" ? "Free" : "Sequential"}
+                </output>
+              </div>
+              <div className="select-grid">
+                <label className="select-field" htmlFor="exercise-mode">
+                  <span>Attention mode</span>
+                  <select
+                    id="exercise-mode"
+                    value={exerciseMode}
+                    onChange={(event) =>
+                      setExerciseMode(event.target.value as ExerciseMode)
+                    }
+                  >
+                    <option value="free">Free practice</option>
+                    <option value="sequential">Sequential stepping</option>
+                  </select>
+                </label>
+
+                <label className="select-field" htmlFor="beats-per-target">
+                  <span>Pacing</span>
+                  <select
+                    id="beats-per-target"
+                    value={String(beatsPerTarget)}
+                    disabled={exerciseMode === "free"}
+                    onChange={(event) =>
+                      setBeatsPerTarget(Number(event.target.value) as BeatsPerTarget)
+                    }
+                  >
+                    <option value="1">1 target per beat</option>
+                    <option value="2">1 target every 2 beats</option>
+                    <option value="4">1 target every 4 beats</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <RangeControl
+              label="Tempo"
+              output={`${bpm} BPM`}
+              inputId="bpm"
+              rangeId="bpm-range"
+              value={bpm}
+              min={MIN_BPM}
+              max={MAX_BPM}
+              step={1}
+              onChange={(value) => setBpm(Math.round(value))}
+            />
+
+            <div className="control-block">
+              <div className="control-label-row">
+                <label htmlFor="beats-per-bar">Meter</label>
+                <output htmlFor="beats-per-bar">
+                  Beat {currentBeatInBar}/{beatsPerBar}
+                </output>
+              </div>
+              <div className="select-grid">
+                <label className="select-field" htmlFor="beats-per-bar">
+                  <span>Beats per bar</span>
+                  <select
+                    id="beats-per-bar"
+                    value={String(beatsPerBar)}
+                    onChange={(event) =>
+                      setBeatsPerBar(clampInt(event.target.value, 2, 8))
+                    }
+                  >
+                    <option value="2">2 / bar</option>
+                    <option value="3">3 / bar</option>
+                    <option value="4">4 / bar</option>
+                    <option value="6">6 / bar</option>
+                    <option value="8">8 / bar</option>
+                  </select>
+                </label>
+
+                <div className="status-stack">
+                  <span className="status-pill">
+                    {accentFirstBeat ? "Accent first beat" : "Flat beat"}
+                  </span>
+                  {exerciseMode === "sequential" ? (
+                    <span className="status-pill">
+                      {beatsUntilShift === 0 || beatsUntilShift === null
+                        ? "Shift now"
+                        : `Shift in ${beatsUntilShift} beat${beatsUntilShift === 1 ? "" : "s"}`}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="toggle-row">
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={accentFirstBeat}
+                  onChange={(event) => setAccentFirstBeat(event.target.checked)}
+                />
+                <span>Accent first beat</span>
+              </label>
+
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={audioEnabled}
+                  onChange={(event) => handleAudioToggle(event.target.checked)}
+                />
+                <span>Audio pulse</span>
+              </label>
+
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={visualPulseEnabled}
+                  onChange={(event) => setVisualPulseEnabled(event.target.checked)}
+                />
+                <span>Visual pulse</span>
+              </label>
+            </div>
+
             <div className="control-block">
               <div className="control-label-row">
                 <label htmlFor="shape-count">Number of shapes</label>
@@ -235,26 +522,28 @@ export default function App() {
               />
             </div>
 
-            <DimensionControl
+            <RangeControl
               label="Width"
+              output={`${boardWidth}px`}
+              inputId="board-width"
+              rangeId="board-width-range"
               value={boardWidth}
               min={MIN_BOARD_WIDTH}
               max={MAX_BOARD_WIDTH}
               step={10}
-              inputId="board-width"
-              rangeId="board-width-range"
-              onChange={setBoardWidth}
+              onChange={(value) => setBoardWidth(Math.round(value))}
             />
 
-            <DimensionControl
+            <RangeControl
               label="Height"
+              output={`${boardHeight}px`}
+              inputId="board-height"
+              rangeId="board-height-range"
               value={boardHeight}
               min={MIN_BOARD_HEIGHT}
               max={MAX_BOARD_HEIGHT}
               step={10}
-              inputId="board-height"
-              rangeId="board-height-range"
-              onChange={setBoardHeight}
+              onChange={(value) => setBoardHeight(Math.round(value))}
             />
 
             <div className="toggle-row">
@@ -271,6 +560,7 @@ export default function App() {
                 <input
                   type="checkbox"
                   checked={showLabels}
+                  disabled={exerciseMode === "sequential"}
                   onChange={(event) => setShowLabels(event.target.checked)}
                 />
                 <span>Show labels below shapes</span>
@@ -295,71 +585,51 @@ export default function App() {
                 <span>Label type</span>
                 <select
                   id="label-type"
-                  value={labelType}
-                  disabled={!showLabels}
-                  onChange={(event) =>
-                    setLabelType(event.target.value as LabelType)
-                  }
+                  value={effectiveLabelType}
+                  disabled={!showLabels || exerciseMode === "sequential"}
+                  onChange={(event) => setLabelType(event.target.value as LabelType)}
                 >
                   <option value="word">Random word</option>
-                  <option value="number">Random number</option>
+                  <option value="number">Sequential number</option>
                 </select>
               </label>
             </div>
 
-            <div className="control-block">
-              <div className="control-label-row">
-                <label htmlFor="grid-opacity">Grid faintness</label>
-                <output htmlFor="grid-opacity">{gridOpacity.toFixed(2)}</output>
-              </div>
-              <div className="paired-inputs">
-                <input
-                  id="grid-opacity"
-                  className="number-input"
-                  type="number"
-                  min={0.05}
-                  max={1}
-                  step={0.05}
-                  value={gridOpacity}
-                  disabled={gridMode === "none"}
-                  onChange={(event) =>
-                    setGridOpacity(clampFloat(event.target.value, 0.05, 1))
-                  }
-                />
-                <input
-                  type="range"
-                  min={0.05}
-                  max={1}
-                  step={0.05}
-                  value={gridOpacity}
-                  disabled={gridMode === "none"}
-                  onChange={(event) =>
-                    setGridOpacity(clampFloat(event.target.value, 0.05, 1))
-                  }
-                />
-              </div>
-            </div>
+            <RangeControl
+              label="Grid faintness"
+              output={gridOpacity.toFixed(2)}
+              inputId="grid-opacity"
+              rangeId="grid-opacity-range"
+              value={gridOpacity}
+              min={0.05}
+              max={1}
+              step={0.05}
+              disabled={gridMode === "none"}
+              onChange={(value) => setGridOpacity(value)}
+            />
 
-            <DoubleNumberRangeControl
+            <RangeControl
               label="Alert min (s)"
+              output={`${minAlertSec.toFixed(1)}s`}
+              inputId="alert-min"
+              rangeId="alert-min-range"
               value={minAlertSec}
               min={MIN_ALERT_SECONDS}
               max={MAX_ALERT_SECONDS}
               step={0.1}
-              inputId="alert-min"
-              rangeId="alert-min-range"
-              onChange={setMinAlertSec}
+              onChange={(value) => setMinAlertSec(value)}
             />
 
-            <DoubleNumberRangeControl
+            <RangeControl
               label="Alert max (s)"
+              output={`${maxAlertSec.toFixed(1)}s`}
+              inputId="alert-max"
+              rangeId="alert-max-range"
               value={maxAlertSec}
               min={MIN_ALERT_SECONDS}
               max={MAX_ALERT_SECONDS}
               step={0.1}
-              inputId="alert-max"
-              rangeId="alert-max-range"
-              onChange={setMaxAlertSec}
+              onChange={(value) => setMaxAlertSec(value)}
             />
           </div>
         </section>
@@ -369,10 +639,19 @@ export default function App() {
             <span>Board {boardWidth} x {boardHeight}</span>
             <span>
               {shapeCount} shapes • {gridMode === "none" ? "no grid" : `${gridMode} grid`}
-              {showLabels ? ` • labels: ${labelType}` : ""}
+              {effectiveShowLabels ? ` • labels: ${effectiveLabelType}` : ""}
+              {exerciseMode === "sequential"
+                ? ` • target ${currentTargetIndex !== null ? currentTargetIndex + 1 : 1}`
+                : ""}
             </span>
           </div>
           <div className="board-stage">
+            {visualPulseEnabled && isMetronomeRunning ? (
+              <div
+                key={pulseToken}
+                className={`beat-pulse${lastPulseAccent ? " is-accent" : ""}`}
+              />
+            ) : null}
             {showAlert ? (
               <div className="board-alert" role="status" aria-live="polite">
                 Alert #{alertCount}
@@ -395,15 +674,21 @@ export default function App() {
                   height={boardHeight}
                   opacity={gridOpacity}
                 />
-                {shapes.map((shape) => (
-                  <ShapeMark key={shape.id} shape={shape} showBorder={showBorder} />
+                {shapes.map((shape, index) => (
+                  <ShapeMark
+                    key={shape.id}
+                    shape={shape}
+                    showBorder={showBorder}
+                    highlighted={currentTargetIndex === index}
+                  />
                 ))}
-                {showLabels
+                {effectiveShowLabels
                   ? shapes.map((shape, index) => (
                       <ShapeLabel
                         key={`label-${shape.id}`}
                         shape={shape}
                         label={labels[index] ?? ""}
+                        active={currentTargetIndex === index}
                       />
                     ))
                   : null}
@@ -416,30 +701,34 @@ export default function App() {
   );
 }
 
-function DimensionControl({
+function RangeControl({
   label,
+  output,
+  inputId,
+  rangeId,
   value,
   min,
   max,
   step,
-  inputId,
-  rangeId,
+  disabled = false,
   onChange,
 }: {
   label: string;
+  output: string;
+  inputId: string;
+  rangeId: string;
   value: number;
   min: number;
   max: number;
   step: number;
-  inputId: string;
-  rangeId: string;
+  disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   return (
     <div className="control-block">
       <div className="control-label-row">
         <label htmlFor={inputId}>{label}</label>
-        <output htmlFor={`${inputId} ${rangeId}`}>{value}px</output>
+        <output htmlFor={`${inputId} ${rangeId}`}>{output}</output>
       </div>
       <div className="paired-inputs">
         <input
@@ -449,56 +738,7 @@ function DimensionControl({
           min={min}
           max={max}
           step={step}
-          value={value}
-          onChange={(event) => onChange(clampInt(event.target.value, min, max))}
-        />
-        <input
-          id={rangeId}
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(event) => onChange(clampInt(event.target.value, min, max))}
-        />
-      </div>
-    </div>
-  );
-}
-
-function DoubleNumberRangeControl({
-  label,
-  value,
-  min,
-  max,
-  step,
-  inputId,
-  rangeId,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  inputId: string;
-  rangeId: string;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <div className="control-block">
-      <div className="control-label-row">
-        <label htmlFor={inputId}>{label}</label>
-        <output htmlFor={`${inputId} ${rangeId}`}>{value.toFixed(1)}s</output>
-      </div>
-      <div className="paired-inputs">
-        <input
-          id={inputId}
-          className="number-input"
-          type="number"
-          min={min}
-          max={max}
-          step={step}
+          disabled={disabled}
           value={value}
           onChange={(event) => onChange(clampFloat(event.target.value, min, max))}
         />
@@ -508,6 +748,7 @@ function DoubleNumberRangeControl({
           min={min}
           max={max}
           step={step}
+          disabled={disabled}
           value={value}
           onChange={(event) => onChange(clampFloat(event.target.value, min, max))}
         />
@@ -603,9 +844,11 @@ function HexGrid({
 function ShapeMark({
   shape,
   showBorder,
+  highlighted,
 }: {
   shape: Shape;
   showBorder: boolean;
+  highlighted: boolean;
 }) {
   const borderProps = showBorder
     ? { stroke: "#243041", strokeWidth: 4, strokeLinejoin: "round" as const }
@@ -613,6 +856,9 @@ function ShapeMark({
 
   return (
     <g transform={`translate(${shape.x} ${shape.y}) rotate(${shape.rotation})`}>
+      {highlighted ? (
+        <ShapeHalo shape={shape} />
+      ) : null}
       {shape.type === "circle" ? (
         <circle r={shape.radius} fill={shape.color} {...borderProps} />
       ) : null}
@@ -653,12 +899,59 @@ function ShapeMark({
   );
 }
 
+function ShapeHalo({ shape }: { shape: Shape }) {
+  if (shape.type === "circle") {
+    return (
+      <circle
+        r={shape.radius + 18}
+        fill="none"
+        stroke="rgba(31, 141, 108, 0.35)"
+        strokeWidth="18"
+      />
+    );
+  }
+
+  if (shape.type === "rectangle") {
+    return (
+      <rect
+        x={-shape.width / 2 - 12}
+        y={-shape.height / 2 - 12}
+        width={shape.width + 24}
+        height={shape.height + 24}
+        rx="18"
+        fill="none"
+        stroke="rgba(31, 141, 108, 0.3)"
+        strokeWidth="18"
+      />
+    );
+  }
+
+  return (
+    <polygon
+      points={
+        shape.type === "triangle"
+          ? trianglePoints(shape.width + 22, shape.height + 22)
+          : polygonPoints(
+              shape.type === "pentagon" ? 5 : 6,
+              shape.width / 2 + 16,
+            )
+      }
+      fill="none"
+      stroke="rgba(31, 141, 108, 0.3)"
+      strokeWidth="18"
+      strokeLinejoin="round"
+    />
+  );
+}
+
 function ShapeLabel({
   shape,
   label,
+  active,
 }: {
   shape: Shape;
   label: string;
+  active: boolean;
 }) {
   const centerY = shape.y + getLabelOffset(shape);
   const pillWidth = Math.max(86, label.length * LABEL_FONT_SIZE * 0.64 + 28);
@@ -672,8 +965,8 @@ function ShapeLabel({
         width={pillWidth}
         height={pillHeight}
         rx={pillHeight / 2}
-        fill="rgba(255, 255, 255, 0.9)"
-        stroke="rgba(36, 48, 65, 0.12)"
+        fill={active ? "rgba(227, 247, 241, 0.98)" : "rgba(255, 255, 255, 0.9)"}
+        stroke={active ? "rgba(20, 96, 76, 0.32)" : "rgba(36, 48, 65, 0.12)"}
       />
       <text
         x={shape.x}
@@ -682,7 +975,7 @@ function ShapeLabel({
         dominantBaseline="middle"
         fontSize={LABEL_FONT_SIZE}
         fontWeight="600"
-        fill="#233043"
+        fill={active ? "#155c49" : "#233043"}
       >
         {label}
       </text>
@@ -812,6 +1105,30 @@ function normalizeAlertWindow(min: number, max: number) {
   );
 
   return [lower, upper] as const;
+}
+
+function playMetronomeTick(
+  audioContext: AudioContext | null,
+  isAccent: boolean,
+) {
+  if (!audioContext) {
+    return;
+  }
+
+  const startAt = audioContext.currentTime;
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+
+  oscillator.type = "triangle";
+  oscillator.frequency.setValueAtTime(isAccent ? 1046 : 784, startAt);
+  gainNode.gain.setValueAtTime(0.0001, startAt);
+  gainNode.gain.exponentialRampToValueAtTime(0.18, startAt + 0.008);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.09);
+
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  oscillator.start(startAt);
+  oscillator.stop(startAt + 0.1);
 }
 
 function clampFloat(value: string, min: number, max: number) {

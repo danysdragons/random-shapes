@@ -100,6 +100,39 @@ select {
   gap: 18px;
 }
 
+.metronome-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(224, 244, 238, 0.85), rgba(248, 251, 245, 0.9));
+  border: 1px solid rgba(20, 96, 76, 0.12);
+}
+
+.metronome-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.metronome-copy strong {
+  font-size: 1.05rem;
+}
+
+.metronome-copy span {
+  color: #526172;
+}
+
+.metronome-kicker {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1f6f59;
+}
+
 .control-block {
   display: grid;
   gap: 10px;
@@ -171,6 +204,23 @@ input[type="range"] {
   font-weight: 600;
 }
 
+.status-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.48rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(31, 111, 89, 0.08);
+  color: #1e5445;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
 .board-button {
   border: 0;
   border-radius: 999px;
@@ -192,6 +242,10 @@ input[type="range"] {
 
 .board-button:active {
   transform: translateY(0);
+}
+
+.metronome-button {
+  min-width: 205px;
 }
 
 .board-frame {
@@ -217,6 +271,20 @@ input[type="range"] {
 
 .board-stage {
   position: relative;
+}
+
+.beat-pulse {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 0 0 18px 18px;
+  background: radial-gradient(circle at center, rgba(31, 141, 108, 0.18), transparent 60%);
+  animation: beatPulse 220ms ease-out forwards;
+}
+
+.beat-pulse.is-accent {
+  background: radial-gradient(circle at center, rgba(245, 159, 0, 0.24), transparent 60%);
 }
 
 .board-alert {
@@ -252,6 +320,18 @@ input[type="range"] {
   height: 100%;
 }
 
+@keyframes beatPulse {
+  from {
+    opacity: 0.75;
+    transform: scale(0.985);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
 input:disabled,
 select:disabled {
   cursor: not-allowed;
@@ -275,6 +355,11 @@ select:disabled {
 
   .board-button {
     width: 100%;
+  }
+
+  .metronome-strip {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .paired-inputs {

@@ -111,6 +111,17 @@ select {
   border: 1px solid rgba(20, 96, 76, 0.12);
 }
 
+.metrics-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(36, 48, 65, 0.08);
+}
+
 .metronome-copy {
   display: grid;
   gap: 4px;
@@ -248,6 +259,21 @@ input[type="range"] {
   min-width: 205px;
 }
 
+.secondary-button {
+  border: 1px solid rgba(36, 48, 65, 0.16);
+  border-radius: 999px;
+  padding: 0.72rem 1rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: #243041;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .board-frame {
   position: relative;
   border-radius: 26px;
@@ -303,6 +329,29 @@ input[type="range"] {
   box-shadow: 0 14px 28px rgba(29, 36, 48, 0.18);
 }
 
+.response-feedback {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  font-weight: 700;
+  box-shadow: 0 14px 28px rgba(29, 36, 48, 0.18);
+  animation: feedbackPop 900ms ease-out;
+}
+
+.response-feedback.is-correct {
+  border: 1px solid rgba(20, 96, 76, 0.22);
+  color: #14604c;
+}
+
+.response-feedback.is-incorrect {
+  border: 1px solid rgba(197, 43, 43, 0.22);
+  color: #c53030;
+}
+
 .board-surface {
   width: 100%;
   min-height: min(74vh, 980px);
@@ -312,6 +361,14 @@ input[type="range"] {
 
 .label-mark text {
   letter-spacing: 0.01em;
+}
+
+.shape-mark.is-selectable {
+  cursor: pointer;
+}
+
+.shape-mark.is-selectable:focus {
+  outline: none;
 }
 
 .board-surface svg {
@@ -329,6 +386,23 @@ input[type="range"] {
   to {
     opacity: 0;
     transform: scale(1.02);
+  }
+}
+
+@keyframes feedbackPop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  20% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -358,6 +432,11 @@ select:disabled {
   }
 
   .metronome-strip {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .metrics-strip {
     flex-direction: column;
     align-items: stretch;
   }

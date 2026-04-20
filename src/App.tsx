@@ -65,6 +65,11 @@ type ExerciseMode =
 type BeatsPerTarget = 1 | 2 | 4;
 type AnchorReturnInterval = 4 | 6 | 8;
 type AlternatingPattern = "triangle-circle" | "warm-cool";
+type ResponseFeedback = {
+  kind: "correct" | "incorrect";
+  message: string;
+  token: number;
+} | null;
 
 type Shape =
   | {
@@ -202,6 +207,13 @@ export default function App() {
     useState<AnchorReturnInterval>(4);
   const [alternatingPattern, setAlternatingPattern] =
     useState<AlternatingPattern>("triangle-circle");
+  const [responseTrackingEnabled, setResponseTrackingEnabled] = useState(true);
+  const [responseStats, setResponseStats] = useState({
+    attempts: 0,
+    correct: 0,
+  });
+  const [responseFeedback, setResponseFeedback] =
+    useState<ResponseFeedback>(null);
   const [isMetronomeRunning, setIsMetronomeRunning] = useState(false);
   const [beatCount, setBeatCount] = useState(0);
   const [pulseToken, setPulseToken] = useState(0);
@@ -353,6 +365,7 @@ export default function App() {
 
   useEffect(() => {
     setBeatCount(0);
+    resetResponseStats();
   }, [
     alternatingPattern,
     anchorReturnInterval,
@@ -401,11 +414,16 @@ export default function App() {
     exerciseMode !== "free"
       ? beatsPerTarget - (beatCount % beatsPerTarget || beatsPerTarget)
       : null;
+  const responseAccuracy =
+    responseStats.attempts === 0
+      ? 0
+      : Math.round((responseStats.correct / responseStats.attempts) * 100);
 
   function regenerateBoard() {
     setSeed(randomSeed());
     setBeatCount(0);
     setPulseToken(0);
+    resetResponseStats();
   }
 
   function ensureAudioContext() {
@@ -454,6 +472,35 @@ export default function App() {
     if (nextValue) {
       ensureAudioContext();
     }
+  }
+
+  function resetResponseStats() {
+    setResponseStats({ attempts: 0, correct: 0 });
+    setResponseFeedback(null);
+  }
+
+  function handleShapeSelect(index: number) {
+    if (
+      !responseTrackingEnabled ||
+      exerciseMode === "free" ||
+      currentTargetIndex === null
+    ) {
+      return;
+    }
+
+    const correct = index === currentTargetIndex;
+
+    setResponseStats((stats) => ({
+      attempts: stats.attempts + 1,
+      correct: stats.correct + (correct ? 1 : 0),
+    }));
+    setResponseFeedback({
+      kind: correct ? "correct" : "incorrect",
+      message: correct
+        ? `Correct: target ${index + 1}`
+        : `Expected target ${currentTargetIndex + 1}, clicked ${index + 1}`,
+      token: Date.now(),
+    });
   }
 
   return (
@@ -657,6 +704,44 @@ export default function App() {
                 />
                 <span>Visual pulse</span>
               </label>
+
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={responseTrackingEnabled}
+                  disabled={exerciseMode === "free"}
+                  onChange={(event) =>
+                    setResponseTrackingEnabled(event.target.checked)
+                  }
+                />
+                <span>Track clicks</span>
+              </label>
+            </div>
+
+            <div className="metrics-strip" aria-live="polite">
+              <div>
+                <p className="metronome-kicker">Response tracking</p>
+                <strong>
+                  {exerciseMode === "free"
+                    ? "Choose a paced exercise to track clicks"
+                    : responseTrackingEnabled
+                      ? `${responseStats.correct}/${responseStats.attempts} correct`
+                      : "Click tracking is off"}
+                </strong>
+                <span>
+                  {responseStats.attempts > 0
+                    ? `${responseAccuracy}% accuracy`
+                    : "Click the highlighted target to confirm each attentional step."}
+                </span>
+              </div>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={responseStats.attempts === 0}
+                onClick={resetResponseStats}
+              >
+                Reset metrics
+              </button>
             </div>
 
             <div className="control-block">
@@ -816,6 +901,16 @@ export default function App() {
                 Alert #{alertCount}
               </div>
             ) : null}
+            {responseFeedback ? (
+              <div
+                key={responseFeedback.token}
+                className={`response-feedback is-${responseFeedback.kind}`}
+                role="status"
+                aria-live="polite"
+              >
+                {responseFeedback.message}
+              </div>
+            ) : null}
             <div
               className="board-surface"
               style={{ aspectRatio: `${boardWidth} / ${boardHeight}` }}
@@ -840,6 +935,10 @@ export default function App() {
                     showBorder={showBorder}
                     highlighted={currentTargetIndex === index}
                     anchored={anchorIndex === index}
+                    selectable={
+                      responseTrackingEnabled && exerciseMode !== "free"
+                    }
+                    onSelect={() => handleShapeSelect(index)}
                   />
                 ))}
                 {effectiveShowLabels
@@ -1007,18 +1106,38 @@ function ShapeMark({
   showBorder,
   highlighted,
   anchored,
+  selectable,
+  onSelect,
 }: {
   shape: Shape;
   showBorder: boolean;
   highlighted: boolean;
   anchored: boolean;
+  selectable: boolean;
+  onSelect: () => void;
 }) {
   const borderProps = showBorder
     ? { stroke: "#243041", strokeWidth: 4, strokeLinejoin: "round" as const }
     : undefined;
 
   return (
-    <g transform={`translate(${shape.x} ${shape.y}) rotate(${shape.rotation})`}>
+    <g
+      className={selectable ? "shape-mark is-selectable" : "shape-mark"}
+      role={selectable ? "button" : undefined}
+      tabIndex={selectable ? 0 : undefined}
+      transform={`translate(${shape.x} ${shape.y}) rotate(${shape.rotation})`}
+      onClick={selectable ? onSelect : undefined}
+      onKeyDown={
+        selectable
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect();
+              }
+            }
+          : undefined
+      }
+    >
       {highlighted ? (
         <ShapeHalo shape={shape} variant="active" />
       ) : anchored ? (

@@ -65,6 +65,14 @@ select {
   margin-bottom: 24px;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   letter-spacing: 0.12em;
@@ -87,12 +95,96 @@ select {
   font-size: 1.05rem;
 }
 
+.hero-manual-button {
+  white-space: nowrap;
+}
+
 .controls {
   margin-bottom: 24px;
   padding: 20px 22px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.58);
   border: 1px solid rgba(36, 48, 65, 0.08);
+}
+
+.manual-panel {
+  margin-bottom: 24px;
+  padding: 22px;
+  border: 1px solid rgba(36, 48, 65, 0.1);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(246, 250, 241, 0.72)),
+    rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.manual-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(36, 48, 65, 0.1);
+}
+
+.manual-panel-header h2 {
+  margin: 2px 0 0;
+  font-size: clamp(1.45rem, 2.4vw, 2.1rem);
+  letter-spacing: -0.03em;
+}
+
+.manual-content {
+  max-height: min(66vh, 760px);
+  padding-right: 12px;
+  overflow: auto;
+}
+
+.manual-content h1,
+.manual-content h2,
+.manual-content h3 {
+  letter-spacing: -0.025em;
+}
+
+.manual-content h1 {
+  margin: 0 0 16px;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+}
+
+.manual-content h2 {
+  margin: 32px 0 10px;
+  font-size: 1.4rem;
+}
+
+.manual-content h3 {
+  margin: 22px 0 8px;
+  font-size: 1.08rem;
+}
+
+.manual-content p,
+.manual-content li {
+  color: #3d4958;
+}
+
+.manual-content p {
+  max-width: 82ch;
+  margin: 0 0 12px;
+}
+
+.manual-content ul,
+.manual-content ol {
+  display: grid;
+  max-width: 82ch;
+  margin: 0 0 16px 1.2rem;
+  padding: 0;
+  gap: 6px;
+}
+
+.manual-content code {
+  padding: 0.12rem 0.32rem;
+  border-radius: 6px;
+  background: rgba(36, 48, 65, 0.08);
+  color: #162133;
 }
 
 .controls-grid {
@@ -583,8 +675,17 @@ select:disabled {
     align-items: stretch;
   }
 
+  .hero-actions {
+    justify-content: stretch;
+  }
+
   .board-button {
     width: 100%;
+  }
+
+  .manual-panel-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .metronome-strip {

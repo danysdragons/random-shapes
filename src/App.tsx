@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import trainingManualMarkdown from "../TRAINING_MANUAL.md?raw";
 
 const DEFAULT_BOARD_WIDTH = 1600;
 const DEFAULT_BOARD_HEIGHT = 960;
@@ -363,6 +364,7 @@ function isWarmColor(color: string) {
 
 export default function App() {
   const [shapeCount, setShapeCount] = useState(40);
+  const [showTrainingManual, setShowTrainingManual] = useState(false);
   const [seed, setSeed] = useState(() => randomSeed());
   const [boardWidth, setBoardWidth] = useState(DEFAULT_BOARD_WIDTH);
   const [boardHeight, setBoardHeight] = useState(DEFAULT_BOARD_HEIGHT);
@@ -1023,10 +1025,39 @@ export default function App() {
               into a rhythm game.
             </p>
           </div>
-          <button className="board-button" onClick={regenerateBoard}>
-            New board (N or Ctrl/Cmd+Enter)
-          </button>
+          <div className="hero-actions">
+            <button
+              className="secondary-button hero-manual-button"
+              type="button"
+              aria-expanded={showTrainingManual}
+              onClick={() => setShowTrainingManual((isVisible) => !isVisible)}
+            >
+              {showTrainingManual ? "Hide manual" : "Training manual"}
+            </button>
+            <button className="board-button" onClick={regenerateBoard}>
+              New board (N or Ctrl/Cmd+Enter)
+            </button>
+          </div>
         </header>
+
+        {showTrainingManual ? (
+          <section className="manual-panel" aria-label="Training manual">
+            <div className="manual-panel-header">
+              <div>
+                <p className="metronome-kicker">Training manual</p>
+                <h2>How to use the training features</h2>
+              </div>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setShowTrainingManual(false)}
+              >
+                Close manual
+              </button>
+            </div>
+            <MarkdownDocument source={trainingManualMarkdown} />
+          </section>
+        ) : null}
 
         <section className="controls" aria-label="Board controls">
           <div className="controls-grid">
@@ -1883,6 +1914,118 @@ function RangeControl({
       </div>
     </div>
   );
+}
+
+function MarkdownDocument({ source }: { source: string }) {
+  const lines = source.split("\n");
+  const blocks: ReactNode[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index]?.trimEnd() ?? "";
+
+    if (line.trim() === "") {
+      index += 1;
+      continue;
+    }
+
+    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+
+    if (heading) {
+      const level = heading[1]!.length;
+      const content = renderMarkdownInline(heading[2]!);
+
+      if (level === 1) {
+        blocks.push(<h1 key={`heading-${index}`}>{content}</h1>);
+      } else if (level === 2) {
+        blocks.push(<h2 key={`heading-${index}`}>{content}</h2>);
+      } else {
+        blocks.push(<h3 key={`heading-${index}`}>{content}</h3>);
+      }
+
+      index += 1;
+      continue;
+    }
+
+    if (line.startsWith("- ")) {
+      const items: ReactNode[] = [];
+
+      while (index < lines.length && lines[index]?.trimStart().startsWith("- ")) {
+        const item = lines[index]!.trimStart().slice(2);
+        items.push(<li key={`item-${index}`}>{renderMarkdownInline(item)}</li>);
+        index += 1;
+      }
+
+      blocks.push(<ul key={`list-${index}`}>{items}</ul>);
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(line)) {
+      const items: ReactNode[] = [];
+
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index] ?? "")) {
+        const item = (lines[index] ?? "").replace(/^\d+\.\s+/, "");
+        items.push(<li key={`item-${index}`}>{renderMarkdownInline(item)}</li>);
+        index += 1;
+      }
+
+      blocks.push(<ol key={`ordered-${index}`}>{items}</ol>);
+      continue;
+    }
+
+    const paragraphLines = [line.trim()];
+    index += 1;
+
+    while (
+      index < lines.length &&
+      lines[index]?.trim() !== "" &&
+      !/^(#{1,3})\s+/.test(lines[index] ?? "") &&
+      !lines[index]?.trimStart().startsWith("- ") &&
+      !/^\d+\.\s+/.test(lines[index] ?? "")
+    ) {
+      paragraphLines.push(lines[index]!.trim());
+      index += 1;
+    }
+
+    blocks.push(
+      <p key={`paragraph-${index}`}>
+        {renderMarkdownInline(paragraphLines.join(" "))}
+      </p>,
+    );
+  }
+
+  return <div className="manual-content">{blocks}</div>;
+}
+
+function renderMarkdownInline(text: string) {
+  const nodes: ReactNode[] = [];
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > cursor) {
+      nodes.push(text.slice(cursor, match.index));
+    }
+
+    const token = match[0];
+
+    if (token.startsWith("**")) {
+      nodes.push(
+        <strong key={`${match.index}-strong`}>{token.slice(2, -2)}</strong>,
+      );
+    } else {
+      nodes.push(<code key={`${match.index}-code`}>{token.slice(1, -1)}</code>);
+    }
+
+    cursor = match.index + token.length;
+  }
+
+  if (cursor < text.length) {
+    nodes.push(text.slice(cursor));
+  }
+
+  return nodes;
 }
 
 function GridPattern({

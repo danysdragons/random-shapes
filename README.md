@@ -2,6 +2,8 @@
 
 This project is a standard Vite + React app that generates a whiteboard full of randomly arranged shapes.
 
+For usage instructions, see [TRAINING_MANUAL.md](./TRAINING_MANUAL.md).
+
 ## Local development
 
 ```bash

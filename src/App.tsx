@@ -57,8 +57,9 @@ const wordBank = [
 type ShapeType = "circle" | "rectangle" | "triangle" | "pentagon" | "hexagon";
 type GridMode = "none" | "square" | "hex";
 type LabelType = "word" | "number";
-type ExerciseMode = "free" | "sequential";
+type ExerciseMode = "free" | "sequential" | "anchor-return";
 type BeatsPerTarget = 1 | 2 | 4;
+type AnchorReturnInterval = 4 | 6 | 8;
 
 type Shape =
   | {
@@ -102,6 +103,8 @@ export default function App() {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [visualPulseEnabled, setVisualPulseEnabled] = useState(true);
   const [beatsPerTarget, setBeatsPerTarget] = useState<BeatsPerTarget>(1);
+  const [anchorReturnInterval, setAnchorReturnInterval] =
+    useState<AnchorReturnInterval>(4);
   const [isMetronomeRunning, setIsMetronomeRunning] = useState(false);
   const [beatCount, setBeatCount] = useState(0);
   const [pulseToken, setPulseToken] = useState(0);
@@ -253,7 +256,7 @@ export default function App() {
 
   useEffect(() => {
     setBeatCount(0);
-  }, [exerciseMode, beatsPerTarget, seed]);
+  }, [anchorReturnInterval, beatsPerTarget, exerciseMode, seed]);
 
   useEffect(() => {
     return () => {
@@ -267,9 +270,8 @@ export default function App() {
     };
   }, []);
 
-  const effectiveLabelType =
-    exerciseMode === "sequential" ? "number" : labelType;
-  const effectiveShowLabels = showLabels || exerciseMode === "sequential";
+  const effectiveLabelType = exerciseMode !== "free" ? "number" : labelType;
+  const effectiveShowLabels = showLabels || exerciseMode !== "free";
 
   const shapes = useMemo(
     () => generateShapes(shapeCount, seed, boardWidth, boardHeight),
@@ -281,14 +283,18 @@ export default function App() {
     [effectiveLabelType, seed, shapeCount],
   );
 
-  const currentTargetIndex =
-    exerciseMode === "sequential" && shapes.length > 0
-      ? Math.floor(beatCount / beatsPerTarget) % shapes.length
-      : null;
+  const movementStep = Math.floor(beatCount / beatsPerTarget);
+  const currentTargetIndex = getCurrentTargetIndex(
+    exerciseMode,
+    movementStep,
+    shapes.length,
+    anchorReturnInterval,
+  );
+  const anchorIndex = exerciseMode === "anchor-return" ? 0 : null;
   const currentBeatInBar =
     beatCount === 0 ? 1 : ((beatCount - 1) % beatsPerBar) + 1;
   const beatsUntilShift =
-    exerciseMode === "sequential"
+    exerciseMode !== "free"
       ? beatsPerTarget - (beatCount % beatsPerTarget || beatsPerTarget)
       : null;
 
@@ -375,7 +381,7 @@ export default function App() {
                 <span>
                   {exerciseMode === "free"
                     ? "Free practice mode with optional beat support."
-                    : `Sequential stepping: target ${currentTargetIndex !== null ? currentTargetIndex + 1 : 1} of ${shapeCount}.`}
+                    : `${getExerciseLabel(exerciseMode)}: target ${currentTargetIndex !== null ? currentTargetIndex + 1 : 1} of ${shapeCount}.`}
                 </span>
               </div>
               <button className="board-button metronome-button" onClick={toggleMetronome}>
@@ -387,7 +393,7 @@ export default function App() {
               <div className="control-label-row">
                 <label htmlFor="exercise-mode">Exercise mode</label>
                 <output htmlFor="exercise-mode">
-                  {exerciseMode === "free" ? "Free" : "Sequential"}
+                  {getExerciseLabel(exerciseMode)}
                 </output>
               </div>
               <div className="select-grid">
@@ -402,6 +408,7 @@ export default function App() {
                   >
                     <option value="free">Free practice</option>
                     <option value="sequential">Sequential stepping</option>
+                    <option value="anchor-return">Anchor-return drill</option>
                   </select>
                 </label>
 
@@ -418,6 +425,24 @@ export default function App() {
                     <option value="1">1 target per beat</option>
                     <option value="2">1 target every 2 beats</option>
                     <option value="4">1 target every 4 beats</option>
+                  </select>
+                </label>
+
+                <label className="select-field" htmlFor="anchor-return-interval">
+                  <span>Anchor return</span>
+                  <select
+                    id="anchor-return-interval"
+                    value={String(anchorReturnInterval)}
+                    disabled={exerciseMode !== "anchor-return"}
+                    onChange={(event) =>
+                      setAnchorReturnInterval(
+                        Number(event.target.value) as AnchorReturnInterval,
+                      )
+                    }
+                  >
+                    <option value="4">Every 4 target steps</option>
+                    <option value="6">Every 6 target steps</option>
+                    <option value="8">Every 8 target steps</option>
                   </select>
                 </label>
               </div>
@@ -464,12 +489,15 @@ export default function App() {
                   <span className="status-pill">
                     {accentFirstBeat ? "Accent first beat" : "Flat beat"}
                   </span>
-                  {exerciseMode === "sequential" ? (
+                  {exerciseMode !== "free" ? (
                     <span className="status-pill">
                       {beatsUntilShift === 0 || beatsUntilShift === null
                         ? "Shift now"
                         : `Shift in ${beatsUntilShift} beat${beatsUntilShift === 1 ? "" : "s"}`}
                     </span>
+                  ) : null}
+                  {exerciseMode === "anchor-return" ? (
+                    <span className="status-pill">Anchor is target 1</span>
                   ) : null}
                 </div>
               </div>
@@ -560,7 +588,7 @@ export default function App() {
                 <input
                   type="checkbox"
                   checked={showLabels}
-                  disabled={exerciseMode === "sequential"}
+                  disabled={exerciseMode !== "free"}
                   onChange={(event) => setShowLabels(event.target.checked)}
                 />
                 <span>Show labels below shapes</span>
@@ -586,7 +614,7 @@ export default function App() {
                 <select
                   id="label-type"
                   value={effectiveLabelType}
-                  disabled={!showLabels || exerciseMode === "sequential"}
+                  disabled={!showLabels || exerciseMode !== "free"}
                   onChange={(event) => setLabelType(event.target.value as LabelType)}
                 >
                   <option value="word">Random word</option>
@@ -640,9 +668,10 @@ export default function App() {
             <span>
               {shapeCount} shapes • {gridMode === "none" ? "no grid" : `${gridMode} grid`}
               {effectiveShowLabels ? ` • labels: ${effectiveLabelType}` : ""}
-              {exerciseMode === "sequential"
+              {exerciseMode !== "free"
                 ? ` • target ${currentTargetIndex !== null ? currentTargetIndex + 1 : 1}`
                 : ""}
+              {exerciseMode === "anchor-return" ? " • anchor 1" : ""}
             </span>
           </div>
           <div className="board-stage">
@@ -680,6 +709,7 @@ export default function App() {
                     shape={shape}
                     showBorder={showBorder}
                     highlighted={currentTargetIndex === index}
+                    anchored={anchorIndex === index}
                   />
                 ))}
                 {effectiveShowLabels
@@ -689,6 +719,7 @@ export default function App() {
                         shape={shape}
                         label={labels[index] ?? ""}
                         active={currentTargetIndex === index}
+                        anchored={anchorIndex === index}
                       />
                     ))
                   : null}
@@ -845,10 +876,12 @@ function ShapeMark({
   shape,
   showBorder,
   highlighted,
+  anchored,
 }: {
   shape: Shape;
   showBorder: boolean;
   highlighted: boolean;
+  anchored: boolean;
 }) {
   const borderProps = showBorder
     ? { stroke: "#243041", strokeWidth: 4, strokeLinejoin: "round" as const }
@@ -857,7 +890,9 @@ function ShapeMark({
   return (
     <g transform={`translate(${shape.x} ${shape.y}) rotate(${shape.rotation})`}>
       {highlighted ? (
-        <ShapeHalo shape={shape} />
+        <ShapeHalo shape={shape} variant="active" />
+      ) : anchored ? (
+        <ShapeHalo shape={shape} variant="anchor" />
       ) : null}
       {shape.type === "circle" ? (
         <circle r={shape.radius} fill={shape.color} {...borderProps} />
@@ -899,14 +934,28 @@ function ShapeMark({
   );
 }
 
-function ShapeHalo({ shape }: { shape: Shape }) {
+function ShapeHalo({
+  shape,
+  variant,
+}: {
+  shape: Shape;
+  variant: "active" | "anchor";
+}) {
+  const stroke =
+    variant === "active"
+      ? "rgba(31, 141, 108, 0.35)"
+      : "rgba(245, 159, 0, 0.36)";
+  const strokeWidth = variant === "active" ? 18 : 10;
+  const strokeDasharray = variant === "anchor" ? "16 12" : undefined;
+
   if (shape.type === "circle") {
     return (
       <circle
         r={shape.radius + 18}
         fill="none"
-        stroke="rgba(31, 141, 108, 0.35)"
-        strokeWidth="18"
+        stroke={stroke}
+        strokeDasharray={strokeDasharray}
+        strokeWidth={strokeWidth}
       />
     );
   }
@@ -920,8 +969,9 @@ function ShapeHalo({ shape }: { shape: Shape }) {
         height={shape.height + 24}
         rx="18"
         fill="none"
-        stroke="rgba(31, 141, 108, 0.3)"
-        strokeWidth="18"
+        stroke={stroke}
+        strokeDasharray={strokeDasharray}
+        strokeWidth={strokeWidth}
       />
     );
   }
@@ -937,8 +987,9 @@ function ShapeHalo({ shape }: { shape: Shape }) {
             )
       }
       fill="none"
-      stroke="rgba(31, 141, 108, 0.3)"
-      strokeWidth="18"
+      stroke={stroke}
+      strokeDasharray={strokeDasharray}
+      strokeWidth={strokeWidth}
       strokeLinejoin="round"
     />
   );
@@ -948,10 +999,12 @@ function ShapeLabel({
   shape,
   label,
   active,
+  anchored,
 }: {
   shape: Shape;
   label: string;
   active: boolean;
+  anchored: boolean;
 }) {
   const centerY = shape.y + getLabelOffset(shape);
   const pillWidth = Math.max(86, label.length * LABEL_FONT_SIZE * 0.64 + 28);
@@ -965,8 +1018,20 @@ function ShapeLabel({
         width={pillWidth}
         height={pillHeight}
         rx={pillHeight / 2}
-        fill={active ? "rgba(227, 247, 241, 0.98)" : "rgba(255, 255, 255, 0.9)"}
-        stroke={active ? "rgba(20, 96, 76, 0.32)" : "rgba(36, 48, 65, 0.12)"}
+        fill={
+          active
+            ? "rgba(227, 247, 241, 0.98)"
+            : anchored
+              ? "rgba(255, 246, 224, 0.98)"
+              : "rgba(255, 255, 255, 0.9)"
+        }
+        stroke={
+          active
+            ? "rgba(20, 96, 76, 0.32)"
+            : anchored
+              ? "rgba(245, 159, 0, 0.32)"
+              : "rgba(36, 48, 65, 0.12)"
+        }
       />
       <text
         x={shape.x}
@@ -975,7 +1040,7 @@ function ShapeLabel({
         dominantBaseline="middle"
         fontSize={LABEL_FONT_SIZE}
         fontWeight="600"
-        fill={active ? "#155c49" : "#233043"}
+        fill={active ? "#155c49" : anchored ? "#7c4f08" : "#233043"}
       >
         {label}
       </text>
@@ -1105,6 +1170,39 @@ function normalizeAlertWindow(min: number, max: number) {
   );
 
   return [lower, upper] as const;
+}
+
+function getCurrentTargetIndex(
+  exerciseMode: ExerciseMode,
+  movementStep: number,
+  shapeCount: number,
+  anchorReturnInterval: AnchorReturnInterval,
+) {
+  if (exerciseMode === "free" || shapeCount === 0) {
+    return null;
+  }
+
+  if (exerciseMode === "sequential" || shapeCount === 1) {
+    return movementStep % shapeCount;
+  }
+
+  if (movementStep === 0 || movementStep % anchorReturnInterval === 0) {
+    return 0;
+  }
+
+  return ((movementStep - 1) % (shapeCount - 1)) + 1;
+}
+
+function getExerciseLabel(exerciseMode: ExerciseMode) {
+  if (exerciseMode === "sequential") {
+    return "Sequential";
+  }
+
+  if (exerciseMode === "anchor-return") {
+    return "Anchor return";
+  }
+
+  return "Free";
 }
 
 function playMetronomeTick(

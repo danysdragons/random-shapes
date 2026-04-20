@@ -61,10 +61,13 @@ type ExerciseMode =
   | "free"
   | "sequential"
   | "anchor-return"
-  | "alternating-feature";
+  | "alternating-feature"
+  | "memory-replay";
 type BeatsPerTarget = 1 | 2 | 4;
 type AnchorReturnInterval = 4 | 6 | 8;
 type AlternatingPattern = "triangle-circle" | "warm-cool";
+type MemoryPhase = "idle" | "preview" | "recall" | "complete";
+type MemorySequenceLength = 4 | 6 | 8 | 10;
 type ResponseFeedback = {
   kind: "correct" | "incorrect";
   message: string;
@@ -133,6 +136,10 @@ function getExerciseLabel(exerciseMode: ExerciseMode) {
     return "Alternating feature";
   }
 
+  if (exerciseMode === "memory-replay") {
+    return "Memory replay";
+  }
+
   return "Free";
 }
 
@@ -176,6 +183,26 @@ function getAlternatingPatternLabel(pattern: AlternatingPattern) {
   return "Warm / cool";
 }
 
+function getMemoryPhaseLabel(
+  phase: MemoryPhase,
+  recallIndex: number,
+  sequenceLength: number,
+) {
+  if (phase === "preview") {
+    return "Previewing sequence";
+  }
+
+  if (phase === "recall") {
+    return `Recall step ${Math.min(recallIndex + 1, sequenceLength)}/${sequenceLength}`;
+  }
+
+  if (phase === "complete") {
+    return "Sequence complete";
+  }
+
+  return "Ready to preview";
+}
+
 function isWarmColor(color: string) {
   return ["#ff6b6b", "#f59f00", "#ffd43b", "#f783ac", "#ffa94d"].includes(
     color,
@@ -207,6 +234,11 @@ export default function App() {
     useState<AnchorReturnInterval>(4);
   const [alternatingPattern, setAlternatingPattern] =
     useState<AlternatingPattern>("triangle-circle");
+  const [memorySequenceLength, setMemorySequenceLength] =
+    useState<MemorySequenceLength>(6);
+  const [memoryPhase, setMemoryPhase] = useState<MemoryPhase>("idle");
+  const [memoryPreviewIndex, setMemoryPreviewIndex] = useState(0);
+  const [memoryRecallIndex, setMemoryRecallIndex] = useState(0);
   const [responseTrackingEnabled, setResponseTrackingEnabled] = useState(true);
   const [responseStats, setResponseStats] = useState({
     attempts: 0,
@@ -221,6 +253,7 @@ export default function App() {
   const alertTimeoutRef = useRef<number | null>(null);
   const hideTimeoutRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const memoryPreviewTimeoutRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -366,18 +399,53 @@ export default function App() {
   useEffect(() => {
     setBeatCount(0);
     resetResponseStats();
+    resetMemoryReplay();
   }, [
     alternatingPattern,
     anchorReturnInterval,
     beatsPerTarget,
     exerciseMode,
+    memorySequenceLength,
     seed,
   ]);
+
+  useEffect(() => {
+    if (memoryPreviewTimeoutRef.current !== null) {
+      window.clearTimeout(memoryPreviewTimeoutRef.current);
+      memoryPreviewTimeoutRef.current = null;
+    }
+
+    if (memoryPhase !== "preview") {
+      return;
+    }
+
+    memoryPreviewTimeoutRef.current = window.setTimeout(() => {
+      setMemoryPreviewIndex((index) => {
+        if (index >= memorySequenceLength - 1) {
+          setMemoryPhase("recall");
+          return index;
+        }
+
+        return index + 1;
+      });
+    }, 850);
+
+    return () => {
+      if (memoryPreviewTimeoutRef.current !== null) {
+        window.clearTimeout(memoryPreviewTimeoutRef.current);
+        memoryPreviewTimeoutRef.current = null;
+      }
+    };
+  }, [memoryPhase, memoryPreviewIndex, memorySequenceLength]);
 
   useEffect(() => {
     return () => {
       if (intervalRef.current !== null) {
         window.clearInterval(intervalRef.current);
+      }
+
+      if (memoryPreviewTimeoutRef.current !== null) {
+        window.clearTimeout(memoryPreviewTimeoutRef.current);
       }
 
       if (audioContextRef.current !== null) {
@@ -387,7 +455,10 @@ export default function App() {
   }, []);
 
   const effectiveLabelType = exerciseMode !== "free" ? "number" : labelType;
-  const effectiveShowLabels = showLabels || exerciseMode !== "free";
+  const effectiveShowLabels =
+    exerciseMode === "memory-replay"
+      ? memoryPhase === "preview"
+      : showLabels || exerciseMode !== "free";
 
   const shapes = useMemo(
     () => generateShapes(shapeCount, seed, boardWidth, boardHeight),
@@ -398,15 +469,29 @@ export default function App() {
     () => generateLabels(shapeCount, seed, effectiveLabelType),
     [effectiveLabelType, seed, shapeCount],
   );
+  const memorySequence = useMemo(
+    () => generateMemorySequence(shapes.length, seed, memorySequenceLength),
+    [memorySequenceLength, seed, shapes.length],
+  );
 
   const movementStep = Math.floor(beatCount / beatsPerTarget);
-  const currentTargetIndex = getCurrentTargetIndex(
+  const pacedTargetIndex = getCurrentTargetIndex(
     exerciseMode,
     movementStep,
     shapes,
     anchorReturnInterval,
     alternatingPattern,
   );
+  const memoryPreviewTargetIndex =
+    exerciseMode === "memory-replay" && memoryPhase === "preview"
+      ? (memorySequence[memoryPreviewIndex] ?? null)
+      : null;
+  const expectedTargetIndex =
+    exerciseMode === "memory-replay" && memoryPhase === "recall"
+      ? (memorySequence[memoryRecallIndex] ?? null)
+      : pacedTargetIndex;
+  const currentTargetIndex =
+    exerciseMode === "memory-replay" ? memoryPreviewTargetIndex : pacedTargetIndex;
   const anchorIndex = exerciseMode === "anchor-return" ? 0 : null;
   const currentBeatInBar =
     beatCount === 0 ? 1 : ((beatCount - 1) % beatsPerBar) + 1;
@@ -424,6 +509,7 @@ export default function App() {
     setBeatCount(0);
     setPulseToken(0);
     resetResponseStats();
+    resetMemoryReplay();
   }
 
   function ensureAudioContext() {
@@ -479,26 +565,57 @@ export default function App() {
     setResponseFeedback(null);
   }
 
+  function resetMemoryReplay() {
+    setMemoryPhase("idle");
+    setMemoryPreviewIndex(0);
+    setMemoryRecallIndex(0);
+
+    if (memoryPreviewTimeoutRef.current !== null) {
+      window.clearTimeout(memoryPreviewTimeoutRef.current);
+      memoryPreviewTimeoutRef.current = null;
+    }
+  }
+
+  function startMemoryPreview() {
+    resetResponseStats();
+    setBeatCount(0);
+    setMemoryRecallIndex(0);
+    setMemoryPreviewIndex(0);
+    setMemoryPhase("preview");
+  }
+
   function handleShapeSelect(index: number) {
     if (
       !responseTrackingEnabled ||
       exerciseMode === "free" ||
-      currentTargetIndex === null
+      expectedTargetIndex === null ||
+      (exerciseMode === "memory-replay" && memoryPhase !== "recall")
     ) {
       return;
     }
 
-    const correct = index === currentTargetIndex;
+    const correct = index === expectedTargetIndex;
 
     setResponseStats((stats) => ({
       attempts: stats.attempts + 1,
       correct: stats.correct + (correct ? 1 : 0),
     }));
+
+    if (exerciseMode === "memory-replay" && correct) {
+      const nextRecallIndex = memoryRecallIndex + 1;
+
+      if (nextRecallIndex >= memorySequence.length) {
+        setMemoryPhase("complete");
+      } else {
+        setMemoryRecallIndex(nextRecallIndex);
+      }
+    }
+
     setResponseFeedback({
       kind: correct ? "correct" : "incorrect",
       message: correct
         ? `Correct: target ${index + 1}`
-        : `Expected target ${currentTargetIndex + 1}, clicked ${index + 1}`,
+        : `Expected target ${expectedTargetIndex + 1}, clicked ${index + 1}`,
       token: Date.now(),
     });
   }
@@ -532,7 +649,13 @@ export default function App() {
                 <span>
                   {exerciseMode === "free"
                     ? "Free practice mode with optional beat support."
-                    : `${getExerciseLabel(exerciseMode)}: target ${currentTargetIndex !== null ? currentTargetIndex + 1 : 1} of ${shapeCount}.`}
+                    : exerciseMode === "memory-replay"
+                      ? getMemoryPhaseLabel(
+                          memoryPhase,
+                          memoryRecallIndex,
+                          memorySequence.length,
+                        )
+                      : `${getExerciseLabel(exerciseMode)}: target ${currentTargetIndex !== null ? currentTargetIndex + 1 : 1} of ${shapeCount}.`}
                 </span>
               </div>
               <button className="board-button metronome-button" onClick={toggleMetronome}>
@@ -561,6 +684,7 @@ export default function App() {
                     <option value="sequential">Sequential stepping</option>
                     <option value="anchor-return">Anchor-return drill</option>
                     <option value="alternating-feature">Alternating-feature drill</option>
+                    <option value="memory-replay">Memory replay</option>
                   </select>
                 </label>
 
@@ -569,7 +693,9 @@ export default function App() {
                   <select
                     id="beats-per-target"
                     value={String(beatsPerTarget)}
-                    disabled={exerciseMode === "free"}
+                    disabled={
+                      exerciseMode === "free" || exerciseMode === "memory-replay"
+                    }
                     onChange={(event) =>
                       setBeatsPerTarget(Number(event.target.value) as BeatsPerTarget)
                     }
@@ -612,6 +738,25 @@ export default function App() {
                   >
                     <option value="triangle-circle">Triangle / circle</option>
                     <option value="warm-cool">Warm / cool color</option>
+                  </select>
+                </label>
+
+                <label className="select-field" htmlFor="memory-sequence-length">
+                  <span>Memory length</span>
+                  <select
+                    id="memory-sequence-length"
+                    value={String(memorySequenceLength)}
+                    disabled={exerciseMode !== "memory-replay"}
+                    onChange={(event) =>
+                      setMemorySequenceLength(
+                        Number(event.target.value) as MemorySequenceLength,
+                      )
+                    }
+                  >
+                    <option value="4">4 targets</option>
+                    <option value="6">6 targets</option>
+                    <option value="8">8 targets</option>
+                    <option value="10">10 targets</option>
                   </select>
                 </label>
               </div>
@@ -673,6 +818,11 @@ export default function App() {
                       {getAlternatingPatternLabel(alternatingPattern)}
                     </span>
                   ) : null}
+                  {exerciseMode === "memory-replay" ? (
+                    <span className="status-pill">
+                      {getMemoryPhaseLabel(memoryPhase, memoryRecallIndex, memorySequence.length)}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -718,6 +868,32 @@ export default function App() {
               </label>
             </div>
 
+            {exerciseMode === "memory-replay" ? (
+              <div className="metrics-strip" aria-live="polite">
+                <div>
+                  <p className="metronome-kicker">Memory replay</p>
+                  <strong>
+                    {getMemoryPhaseLabel(
+                      memoryPhase,
+                      memoryRecallIndex,
+                      memorySequence.length,
+                    )}
+                  </strong>
+                  <span>
+                    Preview the highlighted sequence, then click the same shapes
+                    from memory after labels disappear.
+                  </span>
+                </div>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={startMemoryPreview}
+                >
+                  {memoryPhase === "preview" ? "Restart preview" : "Preview sequence"}
+                </button>
+              </div>
+            ) : null}
+
             <div className="metrics-strip" aria-live="polite">
               <div>
                 <p className="metronome-kicker">Response tracking</p>
@@ -731,7 +907,9 @@ export default function App() {
                 <span>
                   {responseStats.attempts > 0
                     ? `${responseAccuracy}% accuracy`
-                    : "Click the highlighted target to confirm each attentional step."}
+                    : exerciseMode === "memory-replay"
+                      ? "After preview, click remembered targets in order."
+                      : "Click the highlighted target to confirm each attentional step."}
                 </span>
               </div>
               <button
@@ -881,11 +1059,16 @@ export default function App() {
               {shapeCount} shapes • {gridMode === "none" ? "no grid" : `${gridMode} grid`}
               {effectiveShowLabels ? ` • labels: ${effectiveLabelType}` : ""}
               {exerciseMode !== "free"
-                ? ` • target ${currentTargetIndex !== null ? currentTargetIndex + 1 : 1}`
+                ? currentTargetIndex !== null
+                  ? ` • target ${currentTargetIndex + 1}`
+                  : ""
                 : ""}
               {exerciseMode === "anchor-return" ? " • anchor 1" : ""}
               {exerciseMode === "alternating-feature"
                 ? ` • ${getAlternatingPatternLabel(alternatingPattern)}`
+                : ""}
+              {exerciseMode === "memory-replay"
+                ? ` • ${getMemoryPhaseLabel(memoryPhase, memoryRecallIndex, memorySequence.length)}`
                 : ""}
             </span>
           </div>
@@ -936,7 +1119,10 @@ export default function App() {
                     highlighted={currentTargetIndex === index}
                     anchored={anchorIndex === index}
                     selectable={
-                      responseTrackingEnabled && exerciseMode !== "free"
+                      responseTrackingEnabled &&
+                      exerciseMode !== "free" &&
+                      (exerciseMode !== "memory-replay" ||
+                        memoryPhase === "recall")
                     }
                     onSelect={() => handleShapeSelect(index)}
                   />
@@ -1397,6 +1583,31 @@ function generateLabels(count: number, seed: number, labelType: LabelType) {
 
     return wordBank[Math.floor(random() * wordBank.length)] ?? "signal";
   });
+}
+
+function generateMemorySequence(
+  shapeCount: number,
+  seed: number,
+  sequenceLength: MemorySequenceLength,
+) {
+  if (shapeCount === 0) {
+    return [];
+  }
+
+  const random = mulberry32(seed ^ 0x51f15e);
+  const sequence: number[] = [];
+
+  for (let index = 0; index < sequenceLength; index++) {
+    let nextTarget = Math.floor(random() * shapeCount);
+
+    if (shapeCount > 1 && sequence[index - 1] === nextTarget) {
+      nextTarget = (nextTarget + 1) % shapeCount;
+    }
+
+    sequence.push(nextTarget);
+  }
+
+  return sequence;
 }
 
 function getLabelOffset(shape: Shape) {

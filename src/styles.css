@@ -291,8 +291,41 @@ select {
   background: linear-gradient(135deg, rgba(255, 248, 226, 0.72), rgba(255, 255, 255, 0.62));
 }
 
+.summary-strip {
+  background: linear-gradient(135deg, rgba(230, 247, 231, 0.76), rgba(255, 255, 255, 0.62));
+}
+
 .tempo-ladder-strip {
   background: linear-gradient(135deg, rgba(232, 242, 255, 0.72), rgba(255, 255, 255, 0.62));
+}
+
+.guidance-strip {
+  align-items: stretch;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.72), transparent 44%),
+    linear-gradient(135deg, rgba(235, 244, 255, 0.76), rgba(248, 251, 245, 0.72));
+}
+
+.guidance-prompt {
+  display: grid;
+  min-width: min(100%, 320px);
+  padding: 12px 14px;
+  border: 1px solid rgba(31, 111, 89, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.54);
+  gap: 4px;
+}
+
+.guidance-prompt span {
+  color: #1f6f59;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.guidance-prompt strong {
+  color: #243041;
 }
 
 .workout-strip {
@@ -354,6 +387,13 @@ select {
 .workout-step.is-complete {
   border-color: rgba(84, 97, 63, 0.18);
   background: rgba(247, 249, 242, 0.68);
+}
+
+.memory-result {
+  display: block;
+  margin-top: 4px;
+  color: #1f6f59;
+  font-weight: 700;
 }
 
 .session-log-strip {

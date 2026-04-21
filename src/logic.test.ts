@@ -3,7 +3,10 @@ import { practicePresets, workoutPlans } from "./config";
 import {
   generateMemorySequence,
   getCurrentTargetIndex,
+  getDwellPrompt,
   getExerciseLabel,
+  getExerciseInstruction,
+  getSessionSummary,
 } from "./exerciseLogic";
 import { generateLabels, generateShapes } from "./shapeLogic";
 import {
@@ -106,6 +109,30 @@ describe("exercise targeting", () => {
     expect(getExerciseLabel("free")).toBe("Free");
     expect(getExerciseLabel("memory-replay")).toBe("Memory replay");
   });
+
+  it("describes drill instructions for configured modes", () => {
+    expect(
+      getExerciseInstruction("sequential", 2, 4, "triangle-circle", 6),
+    ).toContain("2 beats");
+    expect(
+      getExerciseInstruction("anchor-return", 2, 6, "triangle-circle", 6),
+    ).toContain("every 6 target steps");
+    expect(
+      getExerciseInstruction("memory-replay", 1, 4, "triangle-circle", 8),
+    ).toContain("Preview 8");
+  });
+
+  it("provides dwell prompts for paced and memory drills", () => {
+    expect(getDwellPrompt("sequential", 2, 1, "idle", 0, 6)).toBe(
+      "Hold target 3 for 1 more beat.",
+    );
+    expect(getDwellPrompt("sequential", 2, 0, "idle", 0, 6)).toBe(
+      "Shift now to target 3.",
+    );
+    expect(getDwellPrompt("memory-replay", null, null, "recall", 2, 6)).toBe(
+      "Recall target 3 of 6.",
+    );
+  });
 });
 
 describe("board generation", () => {
@@ -169,6 +196,15 @@ describe("session math", () => {
 
     expect(lower).toBe(0.2);
     expect(upper).toBeCloseTo(0.3);
+  });
+
+  it("summarizes completed sessions", () => {
+    expect(getSessionSummary("Sequential", 125, "60 BPM", 4, 3, 75)).toBe(
+      "Sequential • 2:05 • 60 BPM • 3/4 correct (75%)",
+    );
+    expect(getSessionSummary("Free", 60, "54 BPM", 0, 0, 0)).toContain(
+      "no clicks tracked",
+    );
   });
 });
 

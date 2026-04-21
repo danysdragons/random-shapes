@@ -269,6 +269,25 @@ Use **Reset metrics** to clear the current response stats.
 
 Response tracking is disabled in free practice because there is no assigned target.
 
+## Drill Guidance And Feedback
+
+The app now provides active guidance while you practice.
+
+Use **Drill instructions** to confirm the purpose of the current exercise mode. This text changes when you switch modes, presets, or workout blocks.
+
+Use **Next action** as the immediate dwell prompt:
+
+- In sequential, anchor-return, and alternating-feature drills, it tells you which target to hold and how many beats remain before the next shift.
+- In memory replay, it tells you whether to preview, recall, or restart after completion.
+- In free practice, it reminds you that there is no assigned target.
+
+Memory replay has completion feedback:
+
+- **Passed cleanly** means the full sequence was recalled without an incorrect click.
+- **Completed with corrections** means the sequence was finished after one or more incorrect clicks.
+
+When a timed session ends, the **End-of-session summary** shows the exercise, elapsed time, BPM or BPM range, and click accuracy. Use this to decide whether to repeat the block, reduce speed, or increase difficulty.
+
 ## Session Timer
 
 Use the **Session timer** to create bounded practice blocks.

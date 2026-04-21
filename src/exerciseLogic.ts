@@ -1,6 +1,7 @@
 import type {
   AlternatingPattern,
   AnchorReturnInterval,
+  BeatsPerTarget,
   ExerciseMode,
   MemoryPhase,
   MemorySequenceLength,
@@ -118,6 +119,104 @@ export function getMemoryPhaseLabel(
   }
 
   return "Ready to preview";
+}
+
+export function getExerciseInstruction(
+  exerciseMode: ExerciseMode,
+  beatsPerTarget: BeatsPerTarget,
+  anchorReturnInterval: AnchorReturnInterval,
+  alternatingPattern: AlternatingPattern,
+  memorySequenceLength: MemorySequenceLength,
+) {
+  if (exerciseMode === "sequential") {
+    return `Follow targets in numeric order. Let each target occupy ${formatBeatCount(beatsPerTarget)} before shifting.`;
+  }
+
+  if (exerciseMode === "anchor-return") {
+    return `Move through the numbered targets, then return to target 1 every ${anchorReturnInterval} target steps.`;
+  }
+
+  if (exerciseMode === "alternating-feature") {
+    return `Alternate attention by ${getAlternatingPatternLabel(alternatingPattern).toLowerCase()} while keeping the shift on the beat.`;
+  }
+
+  if (exerciseMode === "memory-replay") {
+    return `Preview ${memorySequenceLength} highlighted targets, then recall the same sequence after labels disappear.`;
+  }
+
+  return "Explore the board freely. Add pacing, labels, alerts, or a timer when you want more structure.";
+}
+
+export function getDwellPrompt(
+  exerciseMode: ExerciseMode,
+  currentTargetIndex: number | null,
+  beatsUntilShift: number | null,
+  memoryPhase: MemoryPhase,
+  memoryRecallIndex: number,
+  memorySequenceLength: number,
+) {
+  if (exerciseMode === "memory-replay") {
+    if (memoryPhase === "preview") {
+      return "Watch the highlighted target and avoid clicking during preview.";
+    }
+
+    if (memoryPhase === "recall") {
+      return `Recall target ${Math.min(memoryRecallIndex + 1, memorySequenceLength)} of ${memorySequenceLength}.`;
+    }
+
+    if (memoryPhase === "complete") {
+      return "Sequence complete. Restart preview or advance the workout block.";
+    }
+
+    return "Press Preview sequence when you are ready to encode the targets.";
+  }
+
+  if (exerciseMode === "free") {
+    return "No assigned target. Use the board for unpaced visual search or orientation checks.";
+  }
+
+  const targetLabel =
+    currentTargetIndex === null ? "the highlighted target" : `target ${currentTargetIndex + 1}`;
+
+  if (beatsUntilShift === null || beatsUntilShift === 0) {
+    return `Shift now to ${targetLabel}.`;
+  }
+
+  if (beatsUntilShift === 1) {
+    return `Hold ${targetLabel} for 1 more beat.`;
+  }
+
+  return `Hold ${targetLabel} for ${beatsUntilShift} more beats.`;
+}
+
+export function getSessionSummary(
+  exerciseLabel: string,
+  durationSeconds: number,
+  bpmLabel: string,
+  attempts: number,
+  correct: number,
+  accuracy: number,
+) {
+  const accuracyLabel =
+    attempts > 0 ? `${correct}/${attempts} correct (${accuracy}%)` : "no clicks tracked";
+
+  return `${exerciseLabel} • ${formatDuration(durationSeconds)} • ${bpmLabel} • ${accuracyLabel}`;
+}
+
+function formatBeatCount(beats: BeatsPerTarget) {
+  if (beats === 1) {
+    return "1 beat";
+  }
+
+  return `${beats} beats`;
+}
+
+function formatDuration(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 export function isWarmColor(color: string) {

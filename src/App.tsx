@@ -27,8 +27,11 @@ import {
   generateMemorySequence,
   getAlternatingPatternLabel,
   getCurrentTargetIndex,
+  getDwellPrompt,
   getExerciseLabel,
+  getExerciseInstruction,
   getMemoryPhaseLabel,
+  getSessionSummary,
 } from "./exerciseLogic";
 import { clampFloat, clampInt, randomSeed } from "./math";
 import {
@@ -143,6 +146,7 @@ export default function App() {
   const [memoryPhase, setMemoryPhase] = useState<MemoryPhase>("idle");
   const [memoryPreviewIndex, setMemoryPreviewIndex] = useState(0);
   const [memoryRecallIndex, setMemoryRecallIndex] = useState(0);
+  const [memoryMistakeCount, setMemoryMistakeCount] = useState(0);
   const [responseTrackingEnabled, setResponseTrackingEnabled] = useState(true);
   const [responseStats, setResponseStats] = useState({
     attempts: 0,
@@ -594,6 +598,40 @@ export default function App() {
     : isSessionRunning
       ? "Session running"
       : "Session ready";
+  const exerciseInstruction = getExerciseInstruction(
+    exerciseMode,
+    beatsPerTarget,
+    anchorReturnInterval,
+    alternatingPattern,
+    memorySequenceLength,
+  );
+  const dwellPrompt = getDwellPrompt(
+    exerciseMode,
+    currentTargetIndex,
+    beatsUntilShift,
+    memoryPhase,
+    memoryRecallIndex,
+    memorySequence.length,
+  );
+  const currentBpmLabel = tempoLadderEnabled
+    ? `${tempoLadderBaseBpm}-${Math.max(bpm, tempoLadderBaseBpm)} BPM`
+    : `${bpm} BPM`;
+  const sessionSummary = getSessionSummary(
+    getExerciseLabel(exerciseMode),
+    sessionElapsedSeconds,
+    currentBpmLabel,
+    responseStats.attempts,
+    responseStats.correct,
+    responseAccuracy,
+  );
+  const memoryReplayOutcome =
+    memoryPhase === "complete"
+      ? memoryMistakeCount === 0
+        ? "Passed cleanly"
+        : `Completed with ${memoryMistakeCount} correction${
+            memoryMistakeCount === 1 ? "" : "s"
+          }`
+      : null;
   const selectedWorkout =
     workoutPlans.find((workout) => workout.id === selectedWorkoutId) ??
     getDefaultWorkoutPlan();
@@ -709,6 +747,7 @@ export default function App() {
     setMemoryPhase("idle");
     setMemoryPreviewIndex(0);
     setMemoryRecallIndex(0);
+    setMemoryMistakeCount(0);
 
     if (memoryPreviewTimeoutRef.current !== null) {
       window.clearTimeout(memoryPreviewTimeoutRef.current);
@@ -719,6 +758,7 @@ export default function App() {
   function startMemoryPreview() {
     resetResponseStats();
     resetBeatClock();
+    setMemoryMistakeCount(0);
     setMemoryRecallIndex(0);
     setMemoryPreviewIndex(0);
     setMemoryPhase("preview");
@@ -867,9 +907,7 @@ export default function App() {
       kind,
       exerciseLabel: getExerciseLabel(exerciseMode),
       durationSeconds: Math.max(0, sessionElapsedSeconds),
-      bpmLabel: tempoLadderEnabled
-        ? `${tempoLadderBaseBpm}-${Math.max(bpm, tempoLadderBaseBpm)} BPM`
-        : `${bpm} BPM`,
+      bpmLabel: currentBpmLabel,
       attempts: responseStats.attempts,
       correct: responseStats.correct,
       accuracy: responseAccuracy,
@@ -914,6 +952,10 @@ export default function App() {
       } else {
         setMemoryRecallIndex(nextRecallIndex);
       }
+    }
+
+    if (exerciseMode === "memory-replay" && !correct) {
+      setMemoryMistakeCount((count) => count + 1);
     }
 
     setResponseFeedback({
@@ -1204,6 +1246,18 @@ export default function App() {
               </div>
             </div>
 
+            <div className="metrics-strip guidance-strip" aria-live="polite">
+              <div>
+                <p className="metronome-kicker">Drill instructions</p>
+                <strong>{getExerciseLabel(exerciseMode)}</strong>
+                <span>{exerciseInstruction}</span>
+              </div>
+              <div className="guidance-prompt">
+                <span>Next action</span>
+                <strong>{dwellPrompt}</strong>
+              </div>
+            </div>
+
             <RangeControl
               label="Tempo"
               output={
@@ -1400,9 +1454,16 @@ export default function App() {
                     )}
                   </strong>
                   <span>
-                    Preview the highlighted sequence, then click the same shapes
-                    from memory after labels disappear.
+                    {memoryReplayOutcome ??
+                      "Preview the highlighted sequence, then click the same shapes from memory after labels disappear."}
                   </span>
+                  {memoryPhase === "complete" ? (
+                    <span className="memory-result">
+                      {memoryMistakeCount === 0
+                        ? "Clean recall: no corrections needed."
+                        : "Replay finished after one or more corrected clicks."}
+                    </span>
+                  ) : null}
                 </div>
                 <button
                   className="secondary-button"
@@ -1482,6 +1543,22 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            {sessionCompleted ? (
+              <div className="metrics-strip summary-strip" aria-live="polite">
+                <div>
+                  <p className="metronome-kicker">End-of-session summary</p>
+                  <strong>{sessionSummary}</strong>
+                  <span>
+                    {activeWorkout && !workoutCompleted
+                      ? isLastWorkoutStep
+                        ? "This was the final workout block. Finish the workout when ready."
+                        : "Advance to the next workout block when ready."
+                      : "Use the summary to decide whether to repeat, slow down, or raise difficulty."}
+                  </span>
+                </div>
+              </div>
+            ) : null}
 
             <div className="metrics-strip" aria-live="polite">
               <div>

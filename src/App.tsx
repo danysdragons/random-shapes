@@ -21,6 +21,7 @@ import {
   TEMPO_LADDER_STEPS,
   practicePresets,
   shapeTypeOptions,
+  workoutPlans,
 } from "./config";
 import {
   generateMemorySequence,
@@ -64,10 +65,21 @@ import type {
   ShapeType,
   TempoLadderIntervalSeconds,
   TempoLadderStepBpm,
+  WorkoutPlan,
 } from "./types";
 
 const METRONOME_LOOKAHEAD_MS = 25;
 const METRONOME_SCHEDULE_AHEAD_SECONDS = 0.12;
+
+function getDefaultWorkoutPlan(): WorkoutPlan {
+  const [defaultWorkoutPlan] = workoutPlans;
+
+  if (!defaultWorkoutPlan) {
+    throw new Error("At least one workout plan must be configured.");
+  }
+
+  return defaultWorkoutPlan;
+}
 
 function loadStoredSessionRecords() {
   try {
@@ -146,6 +158,12 @@ export default function App() {
   const [sessionRecords, setSessionRecords] = useState<SessionRecord[]>(
     loadStoredSessionRecords,
   );
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState(
+    () => getDefaultWorkoutPlan().id,
+  );
+  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
+  const [activeWorkoutStepIndex, setActiveWorkoutStepIndex] = useState(0);
+  const [workoutCompleted, setWorkoutCompleted] = useState(false);
   const [tempoLadderEnabled, setTempoLadderEnabled] = useState(false);
   const [tempoLadderBaseBpm, setTempoLadderBaseBpm] = useState(60);
   const [tempoLadderStepBpm, setTempoLadderStepBpm] =
@@ -576,6 +594,33 @@ export default function App() {
     : isSessionRunning
       ? "Session running"
       : "Session ready";
+  const selectedWorkout =
+    workoutPlans.find((workout) => workout.id === selectedWorkoutId) ??
+    getDefaultWorkoutPlan();
+  const activeWorkout =
+    activeWorkoutId === null
+      ? null
+      : (workoutPlans.find((workout) => workout.id === activeWorkoutId) ??
+        null);
+  const activeWorkoutStep =
+    activeWorkout?.steps[activeWorkoutStepIndex] ?? null;
+  const activeWorkoutPreset = activeWorkoutStep
+    ? (practicePresets.find(
+        (preset) => preset.id === activeWorkoutStep.presetId,
+      ) ?? null)
+    : null;
+  const isLastWorkoutStep =
+    activeWorkout !== null &&
+    activeWorkoutStepIndex >= activeWorkout.steps.length - 1;
+  const workoutStatus = activeWorkout
+    ? workoutCompleted
+      ? `${activeWorkout.name} complete`
+      : `Block ${activeWorkoutStepIndex + 1}/${activeWorkout.steps.length}: ${
+          activeWorkoutPreset?.name ?? "Unknown preset"
+        }`
+    : workoutCompleted
+      ? "Workout complete"
+      : "No workout running";
 
   function regenerateBoard() {
     setSeed(randomSeed());
@@ -744,6 +789,71 @@ export default function App() {
     resetMemoryReplay();
   }
 
+  function getPresetById(presetId: string) {
+    return practicePresets.find((preset) => preset.id === presetId) ?? null;
+  }
+
+  function applyWorkoutStep(workout: WorkoutPlan, stepIndex: number) {
+    const step = workout.steps[stepIndex];
+
+    if (!step) {
+      return false;
+    }
+
+    const preset = getPresetById(step.presetId);
+
+    if (!preset) {
+      return false;
+    }
+
+    applyPracticePreset(preset);
+    return true;
+  }
+
+  function startWorkout(workout: WorkoutPlan = selectedWorkout) {
+    if (!applyWorkoutStep(workout, 0)) {
+      return;
+    }
+
+    setSelectedWorkoutId(workout.id);
+    setActiveWorkoutId(workout.id);
+    setActiveWorkoutStepIndex(0);
+    setWorkoutCompleted(false);
+  }
+
+  function advanceWorkoutStep() {
+    if (!activeWorkout) {
+      return;
+    }
+
+    if (isLastWorkoutStep) {
+      setWorkoutCompleted(true);
+      setIsSessionRunning(false);
+      setIsMetronomeRunning(false);
+      return;
+    }
+
+    const nextStepIndex = activeWorkoutStepIndex + 1;
+
+    if (!applyWorkoutStep(activeWorkout, nextStepIndex)) {
+      return;
+    }
+
+    setActiveWorkoutStepIndex(nextStepIndex);
+    setWorkoutCompleted(false);
+  }
+
+  function stopWorkout() {
+    setActiveWorkoutId(null);
+    setActiveWorkoutStepIndex(0);
+    setWorkoutCompleted(false);
+  }
+
+  function handlePresetClick(preset: PracticePreset) {
+    stopWorkout();
+    applyPracticePreset(preset);
+  }
+
   function saveSessionSnapshot() {
     setSessionRecords((records) => [
       createSessionRecord("saved"),
@@ -879,13 +989,97 @@ export default function App() {
                   key={preset.id}
                   className="preset-card"
                   type="button"
-                  onClick={() => applyPracticePreset(preset)}
+                  onClick={() => handlePresetClick(preset)}
                 >
                   <span>{preset.name}</span>
                   <strong>{preset.bpm} BPM</strong>
                   <small>{preset.description}</small>
                 </button>
               ))}
+            </div>
+
+            <div className="metrics-strip workout-strip" aria-live="polite">
+              <div className="workout-copy">
+                <p className="metronome-kicker">Guided workout</p>
+                <strong>{workoutStatus}</strong>
+                <span>
+                  {activeWorkout
+                    ? activeWorkout.description
+                    : selectedWorkout.description}
+                </span>
+              </div>
+
+              <div className="session-actions">
+                <label className="select-field compact-select" htmlFor="workout-plan">
+                  <span>Routine</span>
+                  <select
+                    id="workout-plan"
+                    value={selectedWorkoutId}
+                    disabled={activeWorkout !== null && !workoutCompleted}
+                    onChange={(event) => setSelectedWorkoutId(event.target.value)}
+                  >
+                    {workoutPlans.map((workout) => (
+                      <option key={workout.id} value={workout.id}>
+                        {workout.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => startWorkout(selectedWorkout)}
+                >
+                  {activeWorkout && !workoutCompleted
+                    ? "Restart workout"
+                    : "Start workout"}
+                </button>
+
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={activeWorkout === null || workoutCompleted}
+                  onClick={advanceWorkoutStep}
+                >
+                  {isLastWorkoutStep ? "Finish workout" : "Next block"}
+                </button>
+
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={activeWorkout === null}
+                  onClick={stopWorkout}
+                >
+                  Stop workout
+                </button>
+              </div>
+
+              <ol className="workout-step-list">
+                {(activeWorkout ?? selectedWorkout).steps.map((step, index) => {
+                  const preset = getPresetById(step.presetId);
+                  const isCurrent =
+                    activeWorkout !== null &&
+                    index === activeWorkoutStepIndex &&
+                    !workoutCompleted;
+
+                  return (
+                    <li
+                      key={`${step.presetId}-${index}`}
+                      className={`workout-step${isCurrent ? " is-current" : ""}${
+                        workoutCompleted || (activeWorkout !== null && index < activeWorkoutStepIndex)
+                          ? " is-complete"
+                          : ""
+                      }`}
+                    >
+                      <strong>
+                        {index + 1}. {preset?.name ?? "Missing preset"}
+                      </strong>
+                      <span>{step.note}</span>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
 
             <div className="metronome-strip">

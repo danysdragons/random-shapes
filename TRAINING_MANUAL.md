@@ -322,6 +322,35 @@ Current presets:
 
 After applying a preset, all controls remain editable.
 
+## Guided Workouts
+
+Guided workouts chain several practice presets into a multi-block routine. They are intended to provide structure while keeping the user in control of when each block starts.
+
+Use:
+
+- **Routine**: selects the workout plan.
+- **Start workout**: applies the first block's preset.
+- **Next block**: applies the next preset in the routine.
+- **Finish workout**: marks the routine complete after the final block.
+- **Stop workout**: exits the routine without changing the current board.
+
+Starting or advancing a workout applies the block's preset, resets the timer for that preset's duration, clears response metrics, and stops the metronome. It does not automatically start the timer or metronome.
+
+Current routines:
+
+- **Starter circuit**: steady sequence, anchor return, memory replay.
+- **Temporal control**: steady sequence, feature switch, anchor return.
+- **Full attention**: steady sequence, feature switch, anchor return, memory replay.
+
+Recommended use:
+
+1. Select a routine.
+2. Press **Start workout**.
+3. Start the timer and metronome when ready.
+4. Complete or save the block.
+5. Press **Next block** and repeat.
+6. Press **Finish workout** after the last block.
+
 ## Random Alerts
 
 The app can display random alert prompts at unpredictable intervals.
@@ -408,6 +437,5 @@ This manual should be updated when new features are added, especially if the app
 - Exportable performance data
 - Additional exercise modes
 - More shape fill styles or border controls
-- Guided multi-block workouts
 - More precise audio scheduling
 - Automated test coverage for exercise logic

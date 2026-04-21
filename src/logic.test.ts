@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { practicePresets } from "./config";
+import { practicePresets, workoutPlans } from "./config";
 import {
   generateMemorySequence,
   getCurrentTargetIndex,
@@ -189,5 +189,34 @@ describe("practice presets", () => {
       "alternating-feature",
       "memory-replay",
     ]);
+  });
+});
+
+describe("guided workouts", () => {
+  it("references configured practice presets for every block", () => {
+    const presetIds = new Set(practicePresets.map((preset) => preset.id));
+
+    expect(workoutPlans.length).toBeGreaterThan(0);
+    expect(
+      workoutPlans.every(
+        (workout) =>
+          workout.steps.length > 0 &&
+          workout.steps.every((step) => presetIds.has(step.presetId)),
+      ),
+    ).toBe(true);
+  });
+
+  it("includes multi-block routines with memory and temporal-control coverage", () => {
+    expect(workoutPlans.some((workout) => workout.steps.length >= 4)).toBe(true);
+    expect(
+      workoutPlans.some((workout) =>
+        workout.steps.some((step) => step.presetId === "memory-replay"),
+      ),
+    ).toBe(true);
+    expect(
+      workoutPlans.some((workout) =>
+        workout.steps.some((step) => step.presetId === "feature-switch"),
+      ),
+    ).toBe(true);
   });
 });

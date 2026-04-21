@@ -55,6 +55,18 @@ export type PracticePreset = {
   memorySequenceLength?: MemorySequenceLength;
 };
 
+export type WorkoutStep = {
+  presetId: string;
+  note: string;
+};
+
+export type WorkoutPlan = {
+  id: string;
+  name: string;
+  description: string;
+  steps: WorkoutStep[];
+};
+
 export type SessionRecord = {
   id: string;
   kind: "completed" | "saved";

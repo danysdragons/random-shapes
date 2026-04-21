@@ -1,4 +1,4 @@
-import type { PracticePreset, ShapeType } from "./types";
+import type { PracticePreset, ShapeType, WorkoutPlan } from "./types";
 
 export const DEFAULT_BOARD_WIDTH = 1600;
 export const DEFAULT_BOARD_HEIGHT = 960;
@@ -171,3 +171,70 @@ export const practicePresets = [
     memorySequenceLength: 6,
   },
 ] satisfies PracticePreset[];
+
+export const workoutPlans = [
+  {
+    id: "starter-circuit",
+    name: "Starter circuit",
+    description:
+      "A short spatial-to-memory circuit for baseline pacing and recall.",
+    steps: [
+      {
+        presetId: "steady-sequence",
+        note: "Calibrate smooth target-to-target shifts.",
+      },
+      {
+        presetId: "anchor-return",
+        note: "Re-center on target 1 while maintaining the beat.",
+      },
+      {
+        presetId: "memory-replay",
+        note: "Finish by recalling a short target sequence.",
+      },
+    ],
+  },
+  {
+    id: "temporal-control",
+    name: "Temporal control",
+    description:
+      "Build beat-locked shifts, feature switching, and anchor recovery.",
+    steps: [
+      {
+        presetId: "steady-sequence",
+        note: "Lock onto a predictable one-target-per-beat cadence.",
+      },
+      {
+        presetId: "feature-switch",
+        note: "Alternate target features while the tempo ladder rises.",
+      },
+      {
+        presetId: "anchor-return",
+        note: "Slow down dwell and return attention to the anchor.",
+      },
+    ],
+  },
+  {
+    id: "full-attention",
+    name: "Full attention",
+    description:
+      "A longer sequence covering spatial order, feature switching, anchor return, and memory.",
+    steps: [
+      {
+        presetId: "steady-sequence",
+        note: "Start with stable sequential scanning.",
+      },
+      {
+        presetId: "feature-switch",
+        note: "Switch attention by target feature under pacing.",
+      },
+      {
+        presetId: "anchor-return",
+        note: "Re-establish a home-base target between shifts.",
+      },
+      {
+        presetId: "memory-replay",
+        note: "End with sequence preview and recall.",
+      },
+    ],
+  },
+] satisfies WorkoutPlan[];

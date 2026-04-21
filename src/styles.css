@@ -295,6 +295,67 @@ select {
   background: linear-gradient(135deg, rgba(232, 242, 255, 0.72), rgba(255, 255, 255, 0.62));
 }
 
+.workout-strip {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: start;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.72), transparent 45%),
+    linear-gradient(135deg, rgba(241, 232, 207, 0.86), rgba(225, 241, 235, 0.72));
+}
+
+.workout-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.workout-copy strong {
+  font-size: 1.08rem;
+}
+
+.workout-copy span {
+  color: #526172;
+}
+
+.workout-step-list {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  gap: 10px;
+  list-style: none;
+}
+
+.workout-step {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid rgba(36, 48, 65, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.workout-step strong {
+  color: #243041;
+}
+
+.workout-step span {
+  color: #526172;
+  font-size: 0.88rem;
+}
+
+.workout-step.is-current {
+  border-color: rgba(31, 141, 108, 0.32);
+  background: rgba(232, 248, 241, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(31, 141, 108, 0.08);
+}
+
+.workout-step.is-complete {
+  border-color: rgba(84, 97, 63, 0.18);
+  background: rgba(247, 249, 242, 0.68);
+}
+
 .session-log-strip {
   align-items: stretch;
   background: linear-gradient(135deg, rgba(237, 247, 234, 0.72), rgba(255, 255, 255, 0.62));
@@ -711,6 +772,14 @@ select:disabled {
   .metrics-strip {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .workout-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .workout-step-list {
+    grid-template-columns: 1fr;
   }
 
   .preset-grid {

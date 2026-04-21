@@ -465,6 +465,65 @@ select {
   gap: 10px;
 }
 
+.control-disclosure {
+  border: 1px solid rgba(36, 48, 65, 0.08);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.56), rgba(248, 251, 245, 0.46)),
+    rgba(255, 255, 255, 0.42);
+  overflow: hidden;
+}
+
+.control-disclosure summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 16px;
+  cursor: pointer;
+  color: #243041;
+  font-weight: 800;
+  list-style: none;
+}
+
+.control-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.control-disclosure summary::after {
+  content: "+";
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(31, 111, 89, 0.1);
+  color: #1f6f59;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.control-disclosure[open] summary::after {
+  content: "-";
+}
+
+.control-disclosure summary span {
+  display: block;
+}
+
+.control-disclosure summary small {
+  color: #617086;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.disclosure-content {
+  display: grid;
+  padding: 0 16px 16px;
+  gap: 18px;
+}
+
 .control-label-row {
   display: flex;
   justify-content: space-between;
@@ -776,6 +835,24 @@ select:disabled {
   opacity: 0.55;
 }
 
+@media (max-width: 1200px) {
+  .preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workout-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .workout-step-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .select-field {
+    flex: 1 1 220px;
+  }
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding: 14px;
@@ -796,6 +873,10 @@ select:disabled {
   }
 
   .board-button {
+    width: 100%;
+  }
+
+  .secondary-button {
     width: 100%;
   }
 
@@ -831,8 +912,20 @@ select:disabled {
     align-items: stretch;
   }
 
+  .control-disclosure summary {
+    align-items: flex-start;
+  }
+
+  .control-disclosure summary small {
+    display: block;
+  }
+
   .session-actions {
     justify-content: stretch;
+  }
+
+  .session-actions > * {
+    flex: 1 1 100%;
   }
 
   .session-record-list {
@@ -845,6 +938,10 @@ select:disabled {
 
   .paired-inputs {
     grid-template-columns: 1fr;
+  }
+
+  .select-field {
+    min-width: 100%;
   }
 
   .board-meta {

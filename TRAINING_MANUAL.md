@@ -16,6 +16,8 @@ Use **New board** to generate a fresh random board. The keyboard shortcut is `N`
 
 Use **Number of shapes** to control board density. Lower counts make targets easier to find. Higher counts increase visual search load and distractor density.
 
+Some lower-frequency controls are grouped into collapsible panels so the main practice controls stay easier to scan during a session.
+
 Use **Width** and **Height** to change the board dimensions. Larger boards increase search area and make scanning more demanding.
 
 Use **Grid** to add spatial reference structure:
@@ -28,7 +30,7 @@ Use **Grid faintness** to adjust the visibility of the grid.
 
 ## Shape Appearance Controls
 
-The **Board & appearance** section controls how shapes are generated and displayed.
+The **Board & appearance** section controls how shapes are generated and displayed. Shape count and shape type selection stay visible. More detailed visual settings are inside **Visual style** and **Board layout & cues**.
 
 ### Shape Types
 

@@ -1275,172 +1275,181 @@ export default function App() {
               onChange={handleTempoChange}
             />
 
-            <div className="metrics-strip tempo-ladder-strip" aria-live="polite">
-              <div>
-                <p className="metronome-kicker">Tempo ladder</p>
-                <strong>
-                  {tempoLadderEnabled
-                    ? isSessionRunning
-                      ? `Stage ${tempoLadderStage}: ${bpm} BPM`
-                      : `${tempoLadderBaseBpm}-${tempoLadderEndBpm} BPM planned`
-                    : "Manual tempo"}
-                </strong>
-                <span>
-                  {tempoLadderEnabled
-                    ? `During timed sessions, BPM rises by ${tempoLadderStepBpm} every ${formatTempoLadderInterval(tempoLadderIntervalSeconds)}.`
-                    : "Keep tempo fixed, or enable a gradual ladder for timed practice blocks."}
-                </span>
-              </div>
-              <div className="session-actions">
-                <label className="checkbox-field ladder-toggle">
-                  <input
-                    type="checkbox"
-                    checked={tempoLadderEnabled}
-                    onChange={(event) =>
-                      handleTempoLadderToggle(event.target.checked)
-                    }
-                  />
-                  <span>Use ladder</span>
-                </label>
+            <details className="control-disclosure">
+              <summary>
+                <span>Pacing details</span>
+                <small>Meter, ladder, pulse, and click tracking</small>
+              </summary>
 
-                <label className="select-field compact-select" htmlFor="tempo-ladder-step">
-                  <span>Step</span>
-                  <select
-                    id="tempo-ladder-step"
-                    value={String(tempoLadderStepBpm)}
-                    disabled={tempoLadderEnabled && isSessionRunning}
-                    onChange={(event) =>
-                      setTempoLadderStepBpm(
-                        Number(event.target.value) as TempoLadderStepBpm,
-                      )
-                    }
-                  >
-                    {TEMPO_LADDER_STEPS.map((step) => (
-                      <option key={step} value={step}>
-                        +{step} BPM
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label
-                  className="select-field compact-select"
-                  htmlFor="tempo-ladder-interval"
-                >
-                  <span>Every</span>
-                  <select
-                    id="tempo-ladder-interval"
-                    value={String(tempoLadderIntervalSeconds)}
-                    disabled={tempoLadderEnabled && isSessionRunning}
-                    onChange={(event) =>
-                      setTempoLadderIntervalSeconds(
-                        Number(event.target.value) as TempoLadderIntervalSeconds,
-                      )
-                    }
-                  >
-                    {TEMPO_LADDER_INTERVALS.map((seconds) => (
-                      <option key={seconds} value={seconds}>
-                        {formatTempoLadderInterval(seconds)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-
-            <div className="control-block">
-              <div className="control-label-row">
-                <label htmlFor="beats-per-bar">Meter</label>
-                <output htmlFor="beats-per-bar">
-                  Beat {currentBeatInBar}/{beatsPerBar}
-                </output>
-              </div>
-              <div className="select-grid">
-                <label className="select-field" htmlFor="beats-per-bar">
-                  <span>Beats per bar</span>
-                  <select
-                    id="beats-per-bar"
-                    value={String(beatsPerBar)}
-                    onChange={(event) =>
-                      setBeatsPerBar(clampInt(event.target.value, 2, 8))
-                    }
-                  >
-                    <option value="2">2 / bar</option>
-                    <option value="3">3 / bar</option>
-                    <option value="4">4 / bar</option>
-                    <option value="6">6 / bar</option>
-                    <option value="8">8 / bar</option>
-                  </select>
-                </label>
-
-                <div className="status-stack">
-                  <span className="status-pill">
-                    {accentFirstBeat ? "Accent first beat" : "Flat beat"}
-                  </span>
-                  {exerciseMode !== "free" ? (
-                    <span className="status-pill">
-                      {beatsUntilShift === 0 || beatsUntilShift === null
-                        ? "Shift now"
-                        : `Shift in ${beatsUntilShift} beat${beatsUntilShift === 1 ? "" : "s"}`}
+              <div className="disclosure-content">
+                <div className="metrics-strip tempo-ladder-strip" aria-live="polite">
+                  <div>
+                    <p className="metronome-kicker">Tempo ladder</p>
+                    <strong>
+                      {tempoLadderEnabled
+                        ? isSessionRunning
+                          ? `Stage ${tempoLadderStage}: ${bpm} BPM`
+                          : `${tempoLadderBaseBpm}-${tempoLadderEndBpm} BPM planned`
+                        : "Manual tempo"}
+                    </strong>
+                    <span>
+                      {tempoLadderEnabled
+                        ? `During timed sessions, BPM rises by ${tempoLadderStepBpm} every ${formatTempoLadderInterval(tempoLadderIntervalSeconds)}.`
+                        : "Keep tempo fixed, or enable a gradual ladder for timed practice blocks."}
                     </span>
-                  ) : null}
-                  {exerciseMode === "anchor-return" ? (
-                    <span className="status-pill">Anchor is target 1</span>
-                  ) : null}
-                  {exerciseMode === "alternating-feature" ? (
-                    <span className="status-pill">
-                      {getAlternatingPatternLabel(alternatingPattern)}
-                    </span>
-                  ) : null}
-                  {exerciseMode === "memory-replay" ? (
-                    <span className="status-pill">
-                      {getMemoryPhaseLabel(memoryPhase, memoryRecallIndex, memorySequence.length)}
-                    </span>
-                  ) : null}
+                  </div>
+                  <div className="session-actions">
+                    <label className="checkbox-field ladder-toggle">
+                      <input
+                        type="checkbox"
+                        checked={tempoLadderEnabled}
+                        onChange={(event) =>
+                          handleTempoLadderToggle(event.target.checked)
+                        }
+                      />
+                      <span>Use ladder</span>
+                    </label>
+
+                    <label className="select-field compact-select" htmlFor="tempo-ladder-step">
+                      <span>Step</span>
+                      <select
+                        id="tempo-ladder-step"
+                        value={String(tempoLadderStepBpm)}
+                        disabled={tempoLadderEnabled && isSessionRunning}
+                        onChange={(event) =>
+                          setTempoLadderStepBpm(
+                            Number(event.target.value) as TempoLadderStepBpm,
+                          )
+                        }
+                      >
+                        {TEMPO_LADDER_STEPS.map((step) => (
+                          <option key={step} value={step}>
+                            +{step} BPM
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label
+                      className="select-field compact-select"
+                      htmlFor="tempo-ladder-interval"
+                    >
+                      <span>Every</span>
+                      <select
+                        id="tempo-ladder-interval"
+                        value={String(tempoLadderIntervalSeconds)}
+                        disabled={tempoLadderEnabled && isSessionRunning}
+                        onChange={(event) =>
+                          setTempoLadderIntervalSeconds(
+                            Number(event.target.value) as TempoLadderIntervalSeconds,
+                          )
+                        }
+                      >
+                        {TEMPO_LADDER_INTERVALS.map((seconds) => (
+                          <option key={seconds} value={seconds}>
+                            {formatTempoLadderInterval(seconds)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="control-block">
+                  <div className="control-label-row">
+                    <label htmlFor="beats-per-bar">Meter</label>
+                    <output htmlFor="beats-per-bar">
+                      Beat {currentBeatInBar}/{beatsPerBar}
+                    </output>
+                  </div>
+                  <div className="select-grid">
+                    <label className="select-field" htmlFor="beats-per-bar">
+                      <span>Beats per bar</span>
+                      <select
+                        id="beats-per-bar"
+                        value={String(beatsPerBar)}
+                        onChange={(event) =>
+                          setBeatsPerBar(clampInt(event.target.value, 2, 8))
+                        }
+                      >
+                        <option value="2">2 / bar</option>
+                        <option value="3">3 / bar</option>
+                        <option value="4">4 / bar</option>
+                        <option value="6">6 / bar</option>
+                        <option value="8">8 / bar</option>
+                      </select>
+                    </label>
+
+                    <div className="status-stack">
+                      <span className="status-pill">
+                        {accentFirstBeat ? "Accent first beat" : "Flat beat"}
+                      </span>
+                      {exerciseMode !== "free" ? (
+                        <span className="status-pill">
+                          {beatsUntilShift === 0 || beatsUntilShift === null
+                            ? "Shift now"
+                            : `Shift in ${beatsUntilShift} beat${beatsUntilShift === 1 ? "" : "s"}`}
+                        </span>
+                      ) : null}
+                      {exerciseMode === "anchor-return" ? (
+                        <span className="status-pill">Anchor is target 1</span>
+                      ) : null}
+                      {exerciseMode === "alternating-feature" ? (
+                        <span className="status-pill">
+                          {getAlternatingPatternLabel(alternatingPattern)}
+                        </span>
+                      ) : null}
+                      {exerciseMode === "memory-replay" ? (
+                        <span className="status-pill">
+                          {getMemoryPhaseLabel(memoryPhase, memoryRecallIndex, memorySequence.length)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="toggle-row">
+                  <label className="checkbox-field">
+                    <input
+                      type="checkbox"
+                      checked={accentFirstBeat}
+                      onChange={(event) => setAccentFirstBeat(event.target.checked)}
+                    />
+                    <span>Accent first beat</span>
+                  </label>
+
+                  <label className="checkbox-field">
+                    <input
+                      type="checkbox"
+                      checked={audioEnabled}
+                      onChange={(event) => handleAudioToggle(event.target.checked)}
+                    />
+                    <span>Audio pulse</span>
+                  </label>
+
+                  <label className="checkbox-field">
+                    <input
+                      type="checkbox"
+                      checked={visualPulseEnabled}
+                      onChange={(event) => setVisualPulseEnabled(event.target.checked)}
+                    />
+                    <span>Visual pulse</span>
+                  </label>
+
+                  <label className="checkbox-field">
+                    <input
+                      type="checkbox"
+                      checked={responseTrackingEnabled}
+                      disabled={exerciseMode === "free"}
+                      onChange={(event) =>
+                        setResponseTrackingEnabled(event.target.checked)
+                      }
+                    />
+                    <span>Track clicks</span>
+                  </label>
                 </div>
               </div>
-            </div>
-
-            <div className="toggle-row">
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={accentFirstBeat}
-                  onChange={(event) => setAccentFirstBeat(event.target.checked)}
-                />
-                <span>Accent first beat</span>
-              </label>
-
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={audioEnabled}
-                  onChange={(event) => handleAudioToggle(event.target.checked)}
-                />
-                <span>Audio pulse</span>
-              </label>
-
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={visualPulseEnabled}
-                  onChange={(event) => setVisualPulseEnabled(event.target.checked)}
-                />
-                <span>Visual pulse</span>
-              </label>
-
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={responseTrackingEnabled}
-                  disabled={exerciseMode === "free"}
-                  onChange={(event) =>
-                    setResponseTrackingEnabled(event.target.checked)
-                  }
-                />
-                <span>Track clicks</span>
-              </label>
-            </div>
+            </details>
 
             {exerciseMode === "memory-replay" ? (
               <div className="metrics-strip" aria-live="polite">
@@ -1686,273 +1695,291 @@ export default function App() {
               </div>
             </div>
 
-            <div className="select-grid">
-              <label className="select-field" htmlFor="palette-theme">
-                <span>Palette</span>
-                <select
-                  id="palette-theme"
-                  value={paletteTheme}
-                  onChange={(event) =>
-                    setPaletteTheme(event.target.value as PaletteTheme)
-                  }
-                >
-                  <option value="bright">Bright</option>
-                  <option value="muted">Muted</option>
-                  <option value="pastel">Pastel</option>
-                  <option value="highContrast">High contrast</option>
-                  <option value="grayscale">Grayscale</option>
-                </select>
-              </label>
+            <details className="control-disclosure">
+              <summary>
+                <span>Visual style</span>
+                <small>Palette, size, rotation, borders, and markers</small>
+              </summary>
 
-              <label className="select-field" htmlFor="shape-size-mode">
-                <span>Shape size</span>
-                <select
-                  id="shape-size-mode"
-                  value={shapeSizeMode}
-                  onChange={(event) =>
-                    setShapeSizeMode(event.target.value as ShapeSizeMode)
-                  }
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
-                  <option value="mixed">Mixed</option>
-                </select>
-              </label>
+              <div className="disclosure-content">
+                <div className="select-grid">
+                  <label className="select-field" htmlFor="palette-theme">
+                    <span>Palette</span>
+                    <select
+                      id="palette-theme"
+                      value={paletteTheme}
+                      onChange={(event) =>
+                        setPaletteTheme(event.target.value as PaletteTheme)
+                      }
+                    >
+                      <option value="bright">Bright</option>
+                      <option value="muted">Muted</option>
+                      <option value="pastel">Pastel</option>
+                      <option value="highContrast">High contrast</option>
+                      <option value="grayscale">Grayscale</option>
+                    </select>
+                  </label>
 
-              <label className="select-field" htmlFor="rotation-mode">
-                <span>Rotation</span>
-                <select
-                  id="rotation-mode"
-                  value={rotationMode}
-                  onChange={(event) =>
-                    setRotationMode(event.target.value as RotationMode)
-                  }
-                >
-                  <option value="none">None</option>
-                  <option value="subtle">Subtle</option>
-                  <option value="full">Full random</option>
-                </select>
-              </label>
-            </div>
+                  <label className="select-field" htmlFor="shape-size-mode">
+                    <span>Shape size</span>
+                    <select
+                      id="shape-size-mode"
+                      value={shapeSizeMode}
+                      onChange={(event) =>
+                        setShapeSizeMode(event.target.value as ShapeSizeMode)
+                      }
+                    >
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                      <option value="mixed">Mixed</option>
+                    </select>
+                  </label>
 
-            <div className="select-grid">
-              <label className="select-field" htmlFor="fill-style">
-                <span>Fill style</span>
-                <select
-                  id="fill-style"
-                  value={fillStyle}
-                  onChange={(event) => setFillStyle(event.target.value as FillStyle)}
-                >
-                  <option value="solid">Solid</option>
-                  <option value="translucent">Translucent</option>
-                  <option value="outline">Outline only</option>
-                </select>
-              </label>
+                  <label className="select-field" htmlFor="rotation-mode">
+                    <span>Rotation</span>
+                    <select
+                      id="rotation-mode"
+                      value={rotationMode}
+                      onChange={(event) =>
+                        setRotationMode(event.target.value as RotationMode)
+                      }
+                    >
+                      <option value="none">None</option>
+                      <option value="subtle">Subtle</option>
+                      <option value="full">Full random</option>
+                    </select>
+                  </label>
+                </div>
 
-              <label className="select-field" htmlFor="border-style">
-                <span>Border style</span>
-                <select
-                  id="border-style"
-                  value={borderStyleMode}
-                  onChange={(event) =>
-                    setBorderStyleMode(event.target.value as BorderStyleMode)
-                  }
-                >
-                  <option value="none">None</option>
-                  <option value="thin">Thin</option>
-                  <option value="medium">Medium</option>
-                  <option value="bold">Bold</option>
-                  <option value="dashed">Dashed</option>
-                </select>
-              </label>
+                <div className="select-grid">
+                  <label className="select-field" htmlFor="fill-style">
+                    <span>Fill style</span>
+                    <select
+                      id="fill-style"
+                      value={fillStyle}
+                      onChange={(event) => setFillStyle(event.target.value as FillStyle)}
+                    >
+                      <option value="solid">Solid</option>
+                      <option value="translucent">Translucent</option>
+                      <option value="outline">Outline only</option>
+                    </select>
+                  </label>
 
-              <label className="select-field" htmlFor="corner-style">
-                <span>Corners</span>
-                <select
-                  id="corner-style"
-                  value={cornerStyle}
-                  onChange={(event) =>
-                    setCornerStyle(event.target.value as CornerStyle)
-                  }
-                >
-                  <option value="sharp">Sharp</option>
-                  <option value="soft">Soft rounded</option>
-                  <option value="round">Round</option>
-                </select>
-              </label>
+                  <label className="select-field" htmlFor="border-style">
+                    <span>Border style</span>
+                    <select
+                      id="border-style"
+                      value={borderStyleMode}
+                      onChange={(event) =>
+                        setBorderStyleMode(event.target.value as BorderStyleMode)
+                      }
+                    >
+                      <option value="none">None</option>
+                      <option value="thin">Thin</option>
+                      <option value="medium">Medium</option>
+                      <option value="bold">Bold</option>
+                      <option value="dashed">Dashed</option>
+                    </select>
+                  </label>
 
-              <label className="select-field" htmlFor="center-marker-style">
-                <span>Center marker</span>
-                <select
-                  id="center-marker-style"
-                  value={centerMarkerStyle}
-                  onChange={(event) =>
-                    setCenterMarkerStyle(
-                      event.target.value as CenterMarkerStyle,
-                    )
-                  }
-                >
-                  <option value="dot">Dot</option>
-                  <option value="ring">Ring</option>
-                  <option value="crosshair">Crosshair</option>
-                  <option value="none">None</option>
-                </select>
-              </label>
-            </div>
+                  <label className="select-field" htmlFor="corner-style">
+                    <span>Corners</span>
+                    <select
+                      id="corner-style"
+                      value={cornerStyle}
+                      onChange={(event) =>
+                        setCornerStyle(event.target.value as CornerStyle)
+                      }
+                    >
+                      <option value="sharp">Sharp</option>
+                      <option value="soft">Soft rounded</option>
+                      <option value="round">Round</option>
+                    </select>
+                  </label>
 
-            <div className="select-grid">
-              <label className="select-field color-field" htmlFor="border-color">
-                <span>Border color</span>
-                <input
-                  id="border-color"
-                  type="color"
-                  value={borderColor}
-                  disabled={borderStyleMode === "none" && fillStyle !== "outline"}
-                  onChange={(event) => setBorderColor(event.target.value)}
+                  <label className="select-field" htmlFor="center-marker-style">
+                    <span>Center marker</span>
+                    <select
+                      id="center-marker-style"
+                      value={centerMarkerStyle}
+                      onChange={(event) =>
+                        setCenterMarkerStyle(
+                          event.target.value as CenterMarkerStyle,
+                        )
+                      }
+                    >
+                      <option value="dot">Dot</option>
+                      <option value="ring">Ring</option>
+                      <option value="crosshair">Crosshair</option>
+                      <option value="none">None</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="select-grid">
+                  <label className="select-field color-field" htmlFor="border-color">
+                    <span>Border color</span>
+                    <input
+                      id="border-color"
+                      type="color"
+                      value={borderColor}
+                      disabled={borderStyleMode === "none" && fillStyle !== "outline"}
+                      onChange={(event) => setBorderColor(event.target.value)}
+                    />
+                  </label>
+
+                  <label className="select-field color-field" htmlFor="center-marker-color">
+                    <span>Marker color</span>
+                    <input
+                      id="center-marker-color"
+                      type="color"
+                      value={centerMarkerColor}
+                      disabled={centerMarkerStyle === "none"}
+                      onChange={(event) => setCenterMarkerColor(event.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <RangeControl
+                  label="Fill opacity"
+                  output={fillStyle === "outline" ? "outline" : fillOpacity.toFixed(2)}
+                  inputId="fill-opacity"
+                  rangeId="fill-opacity-range"
+                  value={fillOpacity}
+                  min={0.15}
+                  max={1}
+                  step={0.05}
+                  disabled={fillStyle === "outline"}
+                  onChange={(value) => setFillOpacity(value)}
                 />
-              </label>
 
-              <label className="select-field color-field" htmlFor="center-marker-color">
-                <span>Marker color</span>
-                <input
-                  id="center-marker-color"
-                  type="color"
-                  value={centerMarkerColor}
+                <RangeControl
+                  label="Marker size"
+                  output={
+                    centerMarkerStyle === "none" ? "hidden" : `${centerMarkerSize}px`
+                  }
+                  inputId="marker-size"
+                  rangeId="marker-size-range"
+                  value={centerMarkerSize}
+                  min={3}
+                  max={18}
+                  step={1}
                   disabled={centerMarkerStyle === "none"}
-                  onChange={(event) => setCenterMarkerColor(event.target.value)}
+                  onChange={(value) => setCenterMarkerSize(Math.round(value))}
                 />
-              </label>
-            </div>
+              </div>
+            </details>
 
-            <RangeControl
-              label="Fill opacity"
-              output={fillStyle === "outline" ? "outline" : fillOpacity.toFixed(2)}
-              inputId="fill-opacity"
-              rangeId="fill-opacity-range"
-              value={fillOpacity}
-              min={0.15}
-              max={1}
-              step={0.05}
-              disabled={fillStyle === "outline"}
-              onChange={(value) => setFillOpacity(value)}
-            />
+            <details className="control-disclosure">
+              <summary>
+                <span>Board layout & cues</span>
+                <small>Dimensions, grid, labels, and random alerts</small>
+              </summary>
 
-            <RangeControl
-              label="Marker size"
-              output={
-                centerMarkerStyle === "none" ? "hidden" : `${centerMarkerSize}px`
-              }
-              inputId="marker-size"
-              rangeId="marker-size-range"
-              value={centerMarkerSize}
-              min={3}
-              max={18}
-              step={1}
-              disabled={centerMarkerStyle === "none"}
-              onChange={(value) => setCenterMarkerSize(Math.round(value))}
-            />
-
-            <RangeControl
-              label="Width"
-              output={`${boardWidth}px`}
-              inputId="board-width"
-              rangeId="board-width-range"
-              value={boardWidth}
-              min={MIN_BOARD_WIDTH}
-              max={MAX_BOARD_WIDTH}
-              step={10}
-              onChange={(value) => setBoardWidth(Math.round(value))}
-            />
-
-            <RangeControl
-              label="Height"
-              output={`${boardHeight}px`}
-              inputId="board-height"
-              rangeId="board-height-range"
-              value={boardHeight}
-              min={MIN_BOARD_HEIGHT}
-              max={MAX_BOARD_HEIGHT}
-              step={10}
-              onChange={(value) => setBoardHeight(Math.round(value))}
-            />
-
-            <div className="toggle-row">
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={showLabels}
-                  disabled={exerciseMode !== "free"}
-                  onChange={(event) => setShowLabels(event.target.checked)}
+              <div className="disclosure-content">
+                <RangeControl
+                  label="Width"
+                  output={`${boardWidth}px`}
+                  inputId="board-width"
+                  rangeId="board-width-range"
+                  value={boardWidth}
+                  min={MIN_BOARD_WIDTH}
+                  max={MAX_BOARD_WIDTH}
+                  step={10}
+                  onChange={(value) => setBoardWidth(Math.round(value))}
                 />
-                <span>Show labels below shapes</span>
-              </label>
-            </div>
 
-            <div className="select-grid">
-              <label className="select-field" htmlFor="grid-mode">
-                <span>Grid</span>
-                <select
-                  id="grid-mode"
-                  value={gridMode}
-                  onChange={(event) => setGridMode(event.target.value as GridMode)}
-                >
-                  <option value="none">No grid</option>
-                  <option value="square">Square grid</option>
-                  <option value="hex">Hexagonal grid</option>
-                </select>
-              </label>
+                <RangeControl
+                  label="Height"
+                  output={`${boardHeight}px`}
+                  inputId="board-height"
+                  rangeId="board-height-range"
+                  value={boardHeight}
+                  min={MIN_BOARD_HEIGHT}
+                  max={MAX_BOARD_HEIGHT}
+                  step={10}
+                  onChange={(value) => setBoardHeight(Math.round(value))}
+                />
 
-              <label className="select-field" htmlFor="label-type">
-                <span>Label type</span>
-                <select
-                  id="label-type"
-                  value={effectiveLabelType}
-                  disabled={!showLabels || exerciseMode !== "free"}
-                  onChange={(event) => setLabelType(event.target.value as LabelType)}
-                >
-                  <option value="word">Random word</option>
-                  <option value="number">Sequential number</option>
-                </select>
-              </label>
-            </div>
+                <div className="toggle-row">
+                  <label className="checkbox-field">
+                    <input
+                      type="checkbox"
+                      checked={showLabels}
+                      disabled={exerciseMode !== "free"}
+                      onChange={(event) => setShowLabels(event.target.checked)}
+                    />
+                    <span>Show labels below shapes</span>
+                  </label>
+                </div>
 
-            <RangeControl
-              label="Grid faintness"
-              output={gridOpacity.toFixed(2)}
-              inputId="grid-opacity"
-              rangeId="grid-opacity-range"
-              value={gridOpacity}
-              min={0.05}
-              max={1}
-              step={0.05}
-              disabled={gridMode === "none"}
-              onChange={(value) => setGridOpacity(value)}
-            />
+                <div className="select-grid">
+                  <label className="select-field" htmlFor="grid-mode">
+                    <span>Grid</span>
+                    <select
+                      id="grid-mode"
+                      value={gridMode}
+                      onChange={(event) => setGridMode(event.target.value as GridMode)}
+                    >
+                      <option value="none">No grid</option>
+                      <option value="square">Square grid</option>
+                      <option value="hex">Hexagonal grid</option>
+                    </select>
+                  </label>
 
-            <RangeControl
-              label="Alert min (s)"
-              output={`${minAlertSec.toFixed(1)}s`}
-              inputId="alert-min"
-              rangeId="alert-min-range"
-              value={minAlertSec}
-              min={MIN_ALERT_SECONDS}
-              max={MAX_ALERT_SECONDS}
-              step={0.1}
-              onChange={(value) => setMinAlertSec(value)}
-            />
+                  <label className="select-field" htmlFor="label-type">
+                    <span>Label type</span>
+                    <select
+                      id="label-type"
+                      value={effectiveLabelType}
+                      disabled={!showLabels || exerciseMode !== "free"}
+                      onChange={(event) => setLabelType(event.target.value as LabelType)}
+                    >
+                      <option value="word">Random word</option>
+                      <option value="number">Sequential number</option>
+                    </select>
+                  </label>
+                </div>
 
-            <RangeControl
-              label="Alert max (s)"
-              output={`${maxAlertSec.toFixed(1)}s`}
-              inputId="alert-max"
-              rangeId="alert-max-range"
-              value={maxAlertSec}
-              min={MIN_ALERT_SECONDS}
-              max={MAX_ALERT_SECONDS}
-              step={0.1}
-              onChange={(value) => setMaxAlertSec(value)}
-            />
+                <RangeControl
+                  label="Grid faintness"
+                  output={gridOpacity.toFixed(2)}
+                  inputId="grid-opacity"
+                  rangeId="grid-opacity-range"
+                  value={gridOpacity}
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  disabled={gridMode === "none"}
+                  onChange={(value) => setGridOpacity(value)}
+                />
+
+                <RangeControl
+                  label="Alert min (s)"
+                  output={`${minAlertSec.toFixed(1)}s`}
+                  inputId="alert-min"
+                  rangeId="alert-min-range"
+                  value={minAlertSec}
+                  min={MIN_ALERT_SECONDS}
+                  max={MAX_ALERT_SECONDS}
+                  step={0.1}
+                  onChange={(value) => setMinAlertSec(value)}
+                />
+
+                <RangeControl
+                  label="Alert max (s)"
+                  output={`${maxAlertSec.toFixed(1)}s`}
+                  inputId="alert-max"
+                  rangeId="alert-max-range"
+                  value={maxAlertSec}
+                  min={MIN_ALERT_SECONDS}
+                  max={MAX_ALERT_SECONDS}
+                  step={0.1}
+                  onChange={(value) => setMaxAlertSec(value)}
+                />
+              </div>
+            </details>
           </div>
         </section>
 

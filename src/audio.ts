@@ -1,12 +1,12 @@
 export function playMetronomeTick(
   audioContext: AudioContext | null,
   isAccent: boolean,
+  startAt = audioContext?.currentTime ?? 0,
 ) {
   if (!audioContext) {
     return;
   }
 
-  const startAt = audioContext.currentTime;
   const oscillator = audioContext.createOscillator();
   const gainNode = audioContext.createGain();
 

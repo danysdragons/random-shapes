@@ -213,6 +213,8 @@ The metronome is an optional pacing scaffold. It is meant to support controlled 
 
 Use **Start metronome** and **Stop metronome** to control beat pacing.
 
+The metronome uses scheduled beat timing internally. When audio is available, ticks are scheduled against the browser's audio clock; visual pulses and target advances are aligned to those scheduled beat times.
+
 Use **Tempo** to set BPM.
 
 Use **Pacing** to set target dwell:

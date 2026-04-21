@@ -66,6 +66,9 @@ import type {
   TempoLadderStepBpm,
 } from "./types";
 
+const METRONOME_LOOKAHEAD_MS = 25;
+const METRONOME_SCHEDULE_AHEAD_SECONDS = 0.12;
+
 function loadStoredSessionRecords() {
   try {
     const storedRecords = window.localStorage.getItem(SESSION_RECORDS_STORAGE_KEY);
@@ -156,6 +159,8 @@ export default function App() {
   const alertTimeoutRef = useRef<number | null>(null);
   const hideTimeoutRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const scheduledPulseTimeoutsRef = useRef<number[]>([]);
+  const beatCountRef = useRef(0);
   const memoryPreviewTimeoutRef = useRef<number | null>(null);
   const sessionIntervalRef = useRef<number | null>(null);
   const sessionCompletionLoggedRef = useRef(false);
@@ -255,54 +260,94 @@ export default function App() {
   }, [minAlertSec, maxAlertSec]);
 
   useEffect(() => {
+    beatCountRef.current = beatCount;
+  }, [beatCount]);
+
+  useEffect(() => {
     if (intervalRef.current !== null) {
-      window.clearInterval(intervalRef.current);
+      window.clearTimeout(intervalRef.current);
       intervalRef.current = null;
     }
+
+    scheduledPulseTimeoutsRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    scheduledPulseTimeoutsRef.current = [];
 
     if (!isMetronomeRunning) {
       return;
     }
 
-    const intervalMs = 60_000 / bpm;
-    intervalRef.current = window.setInterval(() => {
-      setBeatCount((count) => count + 1);
-    }, intervalMs);
+    const audioContext = ensureAudioContext();
+    const secondsPerBeat = 60 / bpm;
+    let nextBeatTime =
+      (audioContext?.currentTime ?? window.performance.now() / 1000) + 0.04;
+    let scheduledBeatNumber = beatCountRef.current;
+
+    const scheduleBeat = (beatNumber: number, startAt: number) => {
+      const accent =
+        accentFirstBeat && ((beatNumber - 1) % beatsPerBar === 0);
+
+      if (audioEnabled && audioContext) {
+        playMetronomeTick(audioContext, accent, startAt);
+      }
+
+      const now = audioContext?.currentTime ?? window.performance.now() / 1000;
+      const delayMs = Math.max(0, (startAt - now) * 1000);
+      const timeoutId = window.setTimeout(() => {
+        scheduledPulseTimeoutsRef.current =
+          scheduledPulseTimeoutsRef.current.filter((id) => id !== timeoutId);
+        beatCountRef.current = beatNumber;
+        setBeatCount(beatNumber);
+
+        if (visualPulseEnabled) {
+          setLastPulseAccent(accent);
+          setPulseToken((token) => token + 1);
+        }
+      }, delayMs);
+
+      scheduledPulseTimeoutsRef.current.push(timeoutId);
+    };
+
+    const runScheduler = () => {
+      const now = audioContext?.currentTime ?? window.performance.now() / 1000;
+
+      while (nextBeatTime < now + METRONOME_SCHEDULE_AHEAD_SECONDS) {
+        scheduledBeatNumber += 1;
+        scheduleBeat(scheduledBeatNumber, nextBeatTime);
+        nextBeatTime += secondsPerBeat;
+      }
+
+      intervalRef.current = window.setTimeout(
+        runScheduler,
+        METRONOME_LOOKAHEAD_MS,
+      );
+    };
+
+    runScheduler();
 
     return () => {
       if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
+        window.clearTimeout(intervalRef.current);
         intervalRef.current = null;
       }
+
+      scheduledPulseTimeoutsRef.current.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+      scheduledPulseTimeoutsRef.current = [];
     };
-  }, [isMetronomeRunning, bpm]);
-
-  useEffect(() => {
-    if (!isMetronomeRunning || beatCount === 0) {
-      return;
-    }
-
-    const accent = accentFirstBeat && ((beatCount - 1) % beatsPerBar === 0);
-
-    if (audioEnabled) {
-      playMetronomeTick(audioContextRef.current, accent);
-    }
-
-    if (visualPulseEnabled) {
-      setLastPulseAccent(accent);
-      setPulseToken((token) => token + 1);
-    }
   }, [
     accentFirstBeat,
     audioEnabled,
-    beatCount,
+    bpm,
     beatsPerBar,
     isMetronomeRunning,
     visualPulseEnabled,
   ]);
 
   useEffect(() => {
-    setBeatCount(0);
+    resetBeatClock();
     resetResponseStats();
     resetMemoryReplay();
   }, [
@@ -426,8 +471,13 @@ export default function App() {
   useEffect(() => {
     return () => {
       if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
+        window.clearTimeout(intervalRef.current);
       }
+
+      scheduledPulseTimeoutsRef.current.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+      scheduledPulseTimeoutsRef.current = [];
 
       if (memoryPreviewTimeoutRef.current !== null) {
         window.clearTimeout(memoryPreviewTimeoutRef.current);
@@ -529,10 +579,15 @@ export default function App() {
 
   function regenerateBoard() {
     setSeed(randomSeed());
-    setBeatCount(0);
-    setPulseToken(0);
+    resetBeatClock();
     resetResponseStats();
     resetMemoryReplay();
+  }
+
+  function resetBeatClock() {
+    beatCountRef.current = 0;
+    setBeatCount(0);
+    setPulseToken(0);
   }
 
   function ensureAudioContext() {
@@ -570,8 +625,7 @@ export default function App() {
     }
 
     ensureAudioContext();
-    setBeatCount(0);
-    setPulseToken(0);
+    resetBeatClock();
     setIsMetronomeRunning(true);
   }
 
@@ -619,7 +673,7 @@ export default function App() {
 
   function startMemoryPreview() {
     resetResponseStats();
-    setBeatCount(0);
+    resetBeatClock();
     setMemoryRecallIndex(0);
     setMemoryPreviewIndex(0);
     setMemoryPhase("preview");
@@ -685,8 +739,7 @@ export default function App() {
     setIsSessionRunning(false);
     setSessionCompleted(false);
     sessionCompletionLoggedRef.current = false;
-    setBeatCount(0);
-    setPulseToken(0);
+    resetBeatClock();
     resetResponseStats();
     resetMemoryReplay();
   }
